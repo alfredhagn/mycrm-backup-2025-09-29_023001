@@ -1,0 +1,48 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Eintrag bearbeiten{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>✏️ Eintrag bearbeiten</h1>
+  <form method="post" action="{% url 'timeclock:edit' entry.id %}" style="display:grid;gap:10px;max-width:520px">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{% url 'timeclock:dashboard' %}">
+
+    <label>Projekt
+<input type="text" name="project_name" list="project_list" class="form-control" required value="{{ entry.project.name }}">
+<datalist id="project_list">
+{% for project in projects %}
+  <option value="{{ project.name }}">
+{% endfor %}
+</datalist>
+    </label>
+
+    <label>Datum
+      <input type="date" name="date" value="{{ entry.start_at|date:'Y-m-d' }}" required>
+    </label>
+
+    <label>Startzeit
+      <input type="time" name="start_time" value="{{ entry.start_at|date:'H:i' }}" required>
+    </label>
+
+    <label>Endzeit
+      <input type="time" name="end_time" value="{% if entry.end_at %}{{ entry.end_at|date:'H:i' }}{% endif %}">
+    </label>
+
+    <label>Bemerkung
+      <input type="text" name="note" value="{{ entry.note|default:'' }}">
+    </label>
+
+    <label style="display:flex;gap:6px;align-items:center">
+      <input type="checkbox" name="is_remote" value="1" {% if entry.is_remote %}checked{% endif %}>
+      Remote (aus = Vor Ort)
+    </label>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn">💾 Speichern</button>
+      <a class="btn" href="{% url 'timeclock:dashboard' %}">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

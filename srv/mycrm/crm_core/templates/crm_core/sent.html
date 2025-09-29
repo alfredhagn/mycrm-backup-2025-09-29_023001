@@ -1,0 +1,36 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+
+{% block title %}Gesendete Mails - MyCRM{% endblock %}
+
+{% block content %}
+<h1>Gesendete Mails</h1>
+
+<a href="{% url 'crm_core:email_home' %}" class="link-sm">Zurück zur E-Mail Übersicht</a>
+
+{% if messages_list %}
+    <table border="1" cellspacing="0" cellpadding="6" width="100%">
+        <thead>
+            <tr>
+                <th>Betreff</th>
+                <th>An</th>
+                <th>Datum</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for msg in messages_list %}
+            <tr>
+                <td>{{ msg.subject }}</td>
+                <td>{{ msg.to }}</td>
+                <td>{{ msg.sentDateTime }}</td>
+                <td><a href="{% url 'crm_core:email_detail' msg.id %}">Anzeigen</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Keine gesendeten E-Mails gefunden.</p>
+{% endif %}
+
+{% endblock %}

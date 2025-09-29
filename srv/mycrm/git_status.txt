@@ -1,0 +1,29 @@
+ M crm_core/__pycache__/urls.cpython-311.pyc
+ M crm_core/__pycache__/views.cpython-311.pyc
+ D crm_core/templates/base.html
+ M crm_core/templates/calendar/create.html
+ M crm_core/templates/calendar/index.html
+ M crm_core/templates/crm_core/base.html
+ M crm_core/templates/crm_core/calendar/home.html
+ M crm_core/templates/crm_core/calendar_list.html
+ M crm_core/templates/crm_core/company_detail.html
+ M crm_core/templates/crm_core/company_form.html
+ M crm_core/templates/crm_core/company_list.html
+ M crm_core/templates/crm_core/contact_list.html
+ M crm_core/templates/crm_core/contacts/delete_confirm.html
+ M crm_core/templates/crm_core/dashboard.html
+ M crm_core/templates/crm_core/email_detail.html
+ M crm_core/templates/crm_core/email_detail.html~
+ M crm_core/templates/crm_core/email_list.html
+ M crm_core/templates/crm_core/sent.html
+ M crm_core/templates/crm_core/voip/call_list.html
+ M crm_core/templates/email/attachments.html
+ M crm_core/templates/email/detail.html
+ M crm_core/templates/email/home.html
+ M crm_core/templates/email/inbox.html
+ M crm_core/templates/email/sent.html
+ M crm_core/templates/files/list.html
+ M crm_core/urls.py
+ M crm_core/views.py
+?? crm_core/templates/crm_core/calendar/index.html
+?? crm_core/views.py.bak.1755778505

@@ -1,0 +1,58 @@
+# --- MAIL ACTIONS: Reply / ReplyAll / Forward ---
+from django.views.decorators.http import require_http_methods
+import re as _re_mail
+
+def _parse_recipients(line: str):
+    if not line:
+        return []
+    parts = [p.strip() for p in _re_mail.split(r"[;,]+", line) if p.strip()]
+    return [{"emailAddress": {"address": p}} for p in parts]
+
+@require_http_methods(["POST"])
+def email_reply(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:inbox")
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+    r = _graph_post(token, f"/me/messages/{message_id}/reply", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Antwort gesendet.")
+    else:
+        messages.error(request, f"Antwort fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_http_methods(["POST"])
+def email_reply_all(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:inbox")
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+    r = _graph_post(token, f"/me/messages/{message_id}/replyAll", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Allen geantwortet.")
+    else:
+        messages.error(request, f"Antwort an alle fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_http_methods(["POST"])
+def email_forward(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:inbox")
+    tos = request.POST.get("to", "").strip()
+    if not tos:
+        messages.error(request, "Bitte Empfänger angeben (To).")
+        return redirect("crm_core:email_detail", message_id=message_id)
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment, "toRecipients": _parse_recipients(tos)}
+    r = _graph_post(token, f"/me/messages/{message_id}/forward", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Weitergeleitet.")
+    else:
+        messages.error(request, f"Weiterleitung fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)

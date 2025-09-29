@@ -1,0 +1,32 @@
+
+*** These modified files were found in JOE when it aborted on Thu Aug 21 00:17:33 2025
+*** JOE was aborted because the terminal closed
+
+*** Datei '(Unbenannt)'
+<strong>Von:</strong> {{ message.from.emailAddress.address }}
+def email_detail(request, message_id: str):
+def email_detail
+def email_detail
+def sent_view
+def sent_view
+{% block ... %}
+{% block ... %}
+calendar
+voip
+
+*** Datei '(Unbenannt)'
+crm_core/templates/crm_core/voip/call_list.html
+crm_core/templates/crm_core/voip/call_list.html
+views.py
+crm_core/templates/crm_core/voip/call_number.html
+views.py
+views.py
+views.py
+views.py
+crm_core/templates/crm_core/voip/call_list.html
+views.py
+crm_core/views.py
+
+*** Datei '* Startup Log *'
+Bearbeite '/etc/joe/joerc'...Bearbeite '/etc/joe/ftyperc'...Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/joerc

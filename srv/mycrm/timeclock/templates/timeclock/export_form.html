@@ -1,0 +1,35 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Zeiten exportieren{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>⬇️ Export</h1>
+  <form method="post" action="{% url 'timeclock:export_file' %}" style="display:grid;gap:10px;max-width:420px">
+    {% csrf_token %}
+    <label>Von
+      <input type="date" name="date_from" value="{{ date_from }}">
+    </label>
+    <label>Bis
+      <input type="date" name="date_to" value="{{ date_to }}">
+    </label>
+    <label>Art
+      <select name="mode">
+        <option value="daily">Pro Tag (aggregiert)</option>
+        <option value="detailed">Einzelne Einträge</option>
+      </select>
+    </label>
+    <label>Format
+      <select name="format">
+        <option value="xlsx">Excel (.xlsx)</option>
+        <option value="csv">CSV (.csv)</option>
+      </select>
+    </label>
+    <p class="muted">Wähle „Einzelne Einträge“ für detaillierten Export; „Pro Tag“ bleibt wie bisher (0,5 h-Aufrundung).</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn">Export starten</button>
+      <a class="btn" href="{% url 'timeclock:dashboard' %}">Zurück</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

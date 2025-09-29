@@ -1,0 +1,30 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}VOIP – Anrufliste{% endblock %}
+{% block content %}
+<h1>Anrufliste (Fritz!Box)</h1>
+<p class="muted">Einträge: {{ calls|length }}</p>
+{% if calls %}
+<table>
+  <thead>
+    <tr>
+      <th>Datum/Zeit</th><th>Typ</th><th>Name</th><th>Rufnummer</th><th>Eigene Nr.</th><th>Nebenstelle/Gerät</th><th>Dauer</th><th>Aktion</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for c in calls %}
+    <tr>
+      <td>{{ c.date }}</td><td>{{ c.type }}</td><td>{{ c.name }}</td>
+      <td>{{ c.caller }}</td><td>{{ c.own }}</td><td>{{ c.device }}</td><td>{{ c.duration }}</td>
+      <td>{% if c.caller %}
+        <form method="post" action="{% url 'crm_core:call_number_via_sipgate' %}">{% csrf_token %}
+          <input type="hidden" name="number" value="{{ c.caller }}">
+          <button class="btn" type="submit">📞 Call</button>
+        </form>
+      {% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>Keine Einträge gefunden.</p>{% endif %}
+{% endblock %}

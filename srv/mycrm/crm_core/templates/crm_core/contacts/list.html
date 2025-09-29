@@ -1,0 +1,19 @@
+<table>
+  <tbody>
+    {% for contact in contacts %}
+      <tr>
+        <td><a href="{% url 'crm_core:contact_detail' contact.pk %}">{{ contact.first_name }} {{ contact.last_name }}</a></td>
+        <td>
+          <a href="{% url 'crm_core:contact_update' contact.pk %}">Bearbeiten</a>
+          |
+          <form method="post" action="{% url 'crm_core:contact_delete' contact.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" onclick="return confirm('Kontakt wirklich löschen?');">Löschen</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="2">Keine Kontakte vorhanden</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

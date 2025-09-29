@@ -1,0 +1,9 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}E-Mail – MyCRM{% endblock %}
+{% block content %}
+<h1>E-Mail</h1>
+<p><a class="btn" href="{% url 'crm_core:inbox' %}">📥 Posteingang</a> 
+   <a class="btn" href="{% url 'crm_core:sent' %}">📤 Gesendet</a>
+   <a class="btn" href="{% url 'crm_core:email_compose' %}">✉️ Neue E-Mail</a></p>
+{% endblock %}

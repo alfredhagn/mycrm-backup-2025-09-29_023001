@@ -1,0 +1,52 @@
+{% load tz %}
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Tagesplan {{ day|date:"d.m.Y" }}</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
+    h1{margin:0 0 8px}
+    .muted{color:#666}
+    .col{width:48%; display:inline-block; vertical-align:top}
+    .box{border:1px solid #ddd; border-radius:8px; padding:10px; margin:10px 0}
+    ul{margin:0; padding-left:18px}
+    li{margin:4px 0}
+  </style>
+</head>
+<body>
+  <h1>Tagesplan {{ day|date:"l, d.m.Y" }}</h1>
+<form method="post" action="/crm/plan/save/" style="margin:0 0 8px">{% csrf_token %}<button class="btn">Im Dateimanager speichern</button></form>
+  <p class="muted">Erzeugt: {% now "d.m.Y H:i" %}</p>
+
+  <div class="col">
+    <div class="box">
+      <h2>Termine</h2>
+      {% if events %}
+        <ul>
+        {% for e in events %}{% if e.link %}{% endif %}
+          <li>• {{ e.time }} – {{ e.title }}{% if e.where %} ({{ e.where }}){% endif %}{% if e.link %} — <a href="{{ e.link }}" target="_blank" rel="noopener">Teams beitreten</a>{% endif %}</li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Keine Termine gefunden.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col" style="float:right">
+    <div class="box">
+      <h2>Aufgaben</h2>
+      {% if tasks %}
+        <ul>
+        {% for t in tasks %}
+          <li>• {{ t.title }}{% if t.where %} ({{ t.where }}){% endif %}</li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Keine Aufgaben gefunden.</p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

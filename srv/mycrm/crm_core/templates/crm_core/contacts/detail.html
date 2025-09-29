@@ -1,0 +1,28 @@
+{% extends 'crm_core/base.html' %}
+{% load datetime_extras %}
+{% block title %}Kontakt{% endblock %}
+{% block content %}
+<h2 class="mb-4">Kontakt</h2>
+
+<div class="card p-3">
+  <div><strong>Name:</strong>
+    {% if contact.first_name or contact.last_name %}
+      {{ contact.first_name|default_if_none:"" }} {{ contact.last_name|default_if_none:"" }}
+    {% elif contact.name %}
+      {{ contact.name }}
+    {% else %}(ohne Namen){% endif %}
+  </div>
+  <div><strong>E-Mail:</strong> {{ contact.email|default_if_none:"" }}</div>
+  <div><strong>Telefon:</strong> {{ contact.phone|default:contact.phone_normalized|default:"" }}</div>
+  {% if contact.company %}<div><strong>Firma:</strong> {{ contact.company.name }}</div>{% endif %}
+</div>
+
+<div class="mt-3">
+  <a href="{% url 'crm_core:contact_update' contact.pk %}" class="btn btn-warning">Bearbeiten</a>
+  <a href="{% url 'crm_core:contact_delete' contact.pk %}" class="btn btn-danger">Löschen</a>
+  <a href="{% url 'crm_core:contact_list' %}" class="btn btn-secondary">Zurück zur Liste</a>
+  {% with num=contact.phone|default:contact.phone_normalized %}
+    {% include 'crm_core/voip/_call_button.html' with number=num %}
+  {% endwith %}
+</div>
+{% endblock %}

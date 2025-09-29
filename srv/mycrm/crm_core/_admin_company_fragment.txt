@@ -1,0 +1,10 @@
+
+# --- FRAGMENT: append to crm_core/admin.py ---
+from django.contrib import admin
+from .models import Company
+
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display  = ("name", "phone", "email", "city", "website")
+    search_fields = ("name", "phone", "email", "city", "postal_code", "country")
+    list_filter   = ("city", "country")

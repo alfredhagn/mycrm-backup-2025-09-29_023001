@@ -1,0 +1,118 @@
+{% extends "crm_core/base.html" %}
+{% block title %}Aufgaben – Microsoft To Do{% endblock %}
+
+{% block extra_head %}
+<style>
+  .lists{display:grid;gap:12px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+  .row-actions{white-space:nowrap; display:flex; gap:8px; align-items:center}
+  .muted{color:var(--muted);font-size:12px}
+  details summary{cursor:pointer;user-select:none}
+  input[type="text"], input[type="date"], select, textarea{width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:#0c1a36;color:var(--fg)}
+  textarea{min-height:70px}
+  .btn{display:inline-block;padding:6px 10px;border-radius:8px;border:1px solid var(--border);text-decoration:none}
+  .btn:hover{background:#153161}
+  .btn-danger{border-color:#5a1b1b}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-head">
+    <h1>📝 Aufgaben (Microsoft To Do)</h1>
+  </div>
+
+  {% if task_data and task_data|length %}
+    <div class="lists">
+      {% for bucket in task_data %}
+        <div class="card">
+          <h3 style="margin:0 0 10px 0;">Liste: {{ bucket.list }}</h3>
+          {% if bucket.tasks and bucket.tasks|length %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Aufgabe</th>
+                  <th>Fällig</th>
+                  <th>Status</th>
+                  <th>Priorität</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in bucket.tasks %}
+                  <tr>
+                    <td>
+                      <div style="font-weight:600">{{ t.title }}</div>
+                      {% if t.body and t.body.content %}
+                        <div class="muted">{{ t.body.content|safe }}</div>
+                      {% endif %}
+                      <details style="margin-top:6px">
+                        <summary>Bearbeiten</summary>
+                        <form method="post" action="{% url 'ms_tasks:edit_task' bucket.list_id t.id %}" style="margin-top:8px">
+                          {% csrf_token %}
+                          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+                            <label>Title
+                              <input type="text" name="title" value="{{ t.title|default:'' }}">
+                            </label>
+                            <label>Fällig
+                              <input type="date" name="due_date" value="{% if t.dueDateTime and t.dueDateTime.dateTime %}{{ t.dueDateTime.dateTime|slice:":10" }}{% endif %}">
+                            </label>
+                            <label>Status
+                              <select name="status">
+                                {% for s in "notStarted,inProgress,completed,waitingOnOthers,deferred".split(",") %}
+                                  <option value="{{s}}" {% if t.status == s %}selected{% endif %}>{{s}}</option>
+                                {% endfor %}
+                              </select>
+                            </label>
+                            <label>Priorität
+                              <select name="importance">
+                                {% for p in "low,normal,high".split(",") %}
+                                  <option value="{{p}}" {% if t.importance == p %}selected{% endif %}>{{p}}</option>
+                                {% endfor %}
+                              </select>
+                            </label>
+                            <label style="grid-column:1/-1">Beschreibung
+                              <textarea name="body">{% if t.body and t.body.content %}{{ t.body.content }}{% endif %}</textarea>
+                            </label>
+                          </div>
+                          <div style="margin-top:8px" class="row-actions">
+                            <button type="submit" class="btn">💾 Speichern</button>
+                          </div>
+                        </form>
+                      </details>
+                    </td>
+                    <td>
+                      {% if t.dueDateTime and t.dueDateTime.dateTime %}
+                        {{ t.dueDateTime.dateTime|slice:":16" }} {{ t.dueDateTime.timeZone }}
+                      {% else %}–{% endif %}
+                    </td>
+                    <td>{{ t.status|default:"unknown" }}</td>
+                    <td>{{ t.importance|default:"normal" }}</td>
+                    <td class="row-actions">
+                      <form method="post" action="{% url 'ms_tasks:update_task' bucket.list_id t.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="completed" value="{% if t.status == 'completed' %}false{% else %}true{% endif %}">
+                        <button type="submit" class="btn">{% if t.status == 'completed' %}Als offen{% else %}Erledigen{% endif %}</button>
+                      </form>
+                      <form method="post" action="{% url 'ms_tasks:delete_task' bucket.list_id t.id %}" onsubmit="return confirm('Aufgabe wirklich löschen?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">🗑 Löschen</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="muted">Keine Aufgaben in dieser Liste.</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Keine Aufgabenlisten gefunden oder keine Berechtigung.</p>
+  {% endif %}
+</div>
+{% endblock %}

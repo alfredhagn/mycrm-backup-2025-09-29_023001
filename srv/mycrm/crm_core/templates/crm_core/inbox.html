@@ -1,0 +1,42 @@
+{% extends 'crm_core/base.html' %}
+{% load datetime_extras %}
+{% block title %}E-Mails{% endblock %}
+{% block content %}
+<h2 class="mb-4">E-Mails</h2>
+
+<form method="get" class="mb-3">
+  <div class="input-group">
+    <input type="text" name="q" value="{{ query }}" placeholder="Suche im Betreff" class="form-control">
+    <button class="btn btn-primary" type="submit">Suchen</button>
+    <a class="btn btn-outline-secondary" href="/crm/inbox/">Zurücksetzen</a>
+  </div>
+</form>
+
+<table class="table table-striped w-full">
+  <thead>
+    <tr>
+      <th style="width: 48%;">Betreff</th>
+      <th>Von</th>
+      <th>Eingang</th>
+      <th>Anh.</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in messages_list %}
+    <tr>
+      <td><a href="/crm/email/{{ m.id }}/">{{ m.subject|default:"(kein Betreff)" }}</a></td>
+      <td>{{ m.from_addr|default:"" }}</td>
+      <td>{{ m.received_local|default:"" }}</td>
+      <td>{% if m.has_attachments %}📎{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">Keine E-Mails gefunden.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="mt-3">
+  <a href="/crm/inbox/" class="btn btn-secondary">Posteingang</a>
+  <a href="/crm/sent/" class="btn btn-outline-secondary">Gesendet</a>
+</div>
+{% endblock %}

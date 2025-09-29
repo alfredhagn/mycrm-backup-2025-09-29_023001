@@ -1,0 +1,10 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Kalender{% endblock %}
+{% block content %}
+<h1>Kalender</h1>
+<ul>
+  <li><a href="{% url 'crm_core:calendar_list' %}">📅 Termine anzeigen</a></li>
+  <li><a href="{% url 'crm_core:calendar_create' %}">➕ Neuer Termin</a></li>
+</ul>
+{% endblock %}

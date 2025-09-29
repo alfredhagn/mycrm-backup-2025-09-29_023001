@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% load datetime_extras %}
+
+{% block content %}
+<h2>Registrieren</h2>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-success">Registrieren</button>
+</form>
+{% endblock %}

@@ -1,0 +1,15 @@
+[Unit]
+Description=Gunicorn for MyCRM
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/mycrm
+Environment="DJANGO_SETTINGS_MODULE=crm_project.settings"
+EnvironmentFile=-/srv/mycrm/mycrm.env
+ExecStart=/srv/mycrm/venv/bin/gunicorn --workers 3 --timeout 120 --chdir /srv/mycrm --bind 127.0.0.1:8000 crm_project.wsgi:application
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

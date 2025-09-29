@@ -1,0 +1,13 @@
+<h1>Termin-Details</h1>
+
+<p><strong>Betreff:</strong> {{ event.subject }}</p>
+<p><strong>Beginn:</strong> {{ event.start.dateTime }}</p>
+<p><strong>Ende:</strong> {{ event.end.dateTime }}</p>
+<p><strong>Beschreibung:</strong></p>
+<div style="border:1px solid #ccc; padding:10px;">{{ event.body.content|safe }}</div>
+
+<p>
+  <a href="{% url 'crm_core:calendar_edit' event.id %}">Bearbeiten</a> |
+  <a href="{% url 'crm_core:calendar_delete' event.id %}">Löschen</a> |
+  <a href="{% url 'crm_core:calendar_list' %}">Zurück zur Übersicht</a>
+</p>

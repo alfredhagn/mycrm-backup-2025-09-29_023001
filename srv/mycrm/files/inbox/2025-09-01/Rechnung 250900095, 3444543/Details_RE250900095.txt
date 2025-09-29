@@ -1,0 +1,19 @@
+Details zu RE250900095 vom 1. September 2025
+An Alfred Hagn
+
+ Datum       Menge  Produktbeschreibung                                            Einzel      Preis
+------------------------------------------------------------------------------------------------------
+ 2025-08   0:01:45  Verbindungsentgelt Oesterreich - Wien FZ                       0.0204     0.0357
+
+ 2025-08   0:02:09  Verbindungsentgelt Oesterreich - Wien GZ                       0.0420     0.0903
+
+
+======================================================================================================
+
+ 2025-09         1  8 statische IPv4 Adressen                                      0.00     0.00
+                    01.09.2025 - 30.09.2025 - 37.75.138.32/29                  
+
+ 2025-09         1  DSL 150 MBit/s best effort                                    63.00    63.00
+                    01.09.2025 - 30.09.2025 - Rudorf Waisenhorn Gasse          
+                    138/Haus 4, 1230 Wien                                      
+

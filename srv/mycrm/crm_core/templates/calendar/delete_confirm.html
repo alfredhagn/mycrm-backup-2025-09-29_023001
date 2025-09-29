@@ -1,0 +1,15 @@
+<h1>Termin löschen</h1>
+
+<p>Sind Sie sicher, dass Sie diesen Termin löschen möchten?</p>
+
+<ul>
+  <li><strong>Betreff:</strong> {{ event.subject }}</li>
+  <li><strong>Beginn:</strong> {{ event.start.dateTime }}</li>
+  <li><strong>Ende:</strong> {{ event.end.dateTime }}</li>
+</ul>
+
+<form method="post">
+  {% csrf_token %}
+  <button type="submit">✅ Löschen</button>
+  <a href="{% url 'crm_core:calendar_list' %}">❌ Abbrechen</a>
+</form>

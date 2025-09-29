@@ -1,0 +1,1352 @@
+
+*** These modified files were found in JOE when it aborted on Sun Aug 10 08:47:45 2025
+*** JOE was aborted because the terminal closed
+
+*** Datei '/root/mycrm/crm_core/templates/crm_core/calendar/form.html'
+{% extends "base.html" %}
+
+
+{% block title %}Termin {{ mode == 'create'|yesno:"anlegen,bearbeiten" }}{% endblock %}
+{% block content %}
+<h1>Termin {% if mode == 'create' %}anlegen{% else %}bearbeiten{% endif %}</h1>
+{% if error %}<p style="color:#c00">{{ error }}</p>{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <p><label>Betreff<br><input type="text" name="subject" value="{{ subject|default:'' }}" required></label></p>
+  <p><label>Beginn<br><input type="datetime-local" name="start" value="{{ start|default:'' }}" required></label></p>
+  <p><label>Ende<br><input type="datetime-local" name="end" value="{{ end|default:'' }}" required></label></p>
+  <p><label>Ort<br><input type="text" name="location" value="{{ location|default:'' }}"></label></p>
+  <p><label>Teilnehmer (Komma-getrennt)<br>
+     <input type="text" name="attendees" value="{{ attendees|default:'' }}">
+  </label></p>
+  <p><label>Beschreibung (HTML erlaubt)<br>
+     <textarea name="body" rows="6">{{ body|default:'' }}</textarea>
+  </label></p>
+  <p>
+    <button type="submit">Speichern</button>
+    {% if mode == 'update' %}
+      <a href="{% url 'crm_core:calendar_detail' event_id %}">Abbrechen</a>
+    {% else %}
+      <a href="{% url 'crm_core:calendar_list' %}">Abbrechen</a>
+    {% endif %}
+  </p>
+</form>
+{% endblock %}
+
+*** Datei '(Unbenannt)'
+list.html
+detail.html
+form.html
+urls.py
+urls.py
+/root/mycrm/crm_core/templates/crm_core/base.html
+views.py
+urls.py
+home.html
+/root/mycrm/crm_core/templates/crm_core/base.html
+/root/mycrm/crm_core/templates/crm_core/calendar/form.html
+
+*** Datei '* Startup Log *'
+Bearbeite '/etc/joe/joerc'...Bearbeite '/etc/joe/ftyperc'...Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/joerc
+
+*** These modified files were found in JOE when it aborted on Thu Aug 14 23:49:19 2025
+*** JOE was aborted because the terminal closed
+
+*** Datei 'urls.py'
+from django.contrib import admin
+from django.urls import path, include
+from django.http import HttpResponse
+from django.views.generic import RedirectView
+
+urlpatterns = [
+    path("healthz/", lambda r: HttpResponse("ok"), name="healthz"),
+    path("", RedirectView.as_view(url="/crm/", permanent=False)),
+    path("crm/", include(("crm_core.urls", "crm_core"), namespace="crm_core")),
+]
+
+
+app_name = "crm_core"
+
+urlpatterns = [
+
+
+    
+    # Dashboard & Microsoft Login
+    path("", views.dashboard, name="dashboard"),
+    path("microsoft/init/", views.microsoft_auth_init, name="microsoft_auth_init"),
+    path("microsoft/callback/", views.microsoft_auth_callback, name="microsoft_auth_callback"),
+
+    # E-Mail
+    path("email/", views.email_home, name="email_home"),
+
+    # feste Routen zuerst
+    path("email/compose/", views.send_email_view, name="email_compose"),
+    path("email/send/", views.send_email_view, name="send_email"),
+    path("email/refresh/", views.email_refresh, name="email_refresh"),
+    path("email/logs/", views.email_log_list, name="email_log_list"),
+    path("email/logs/<int:pk>/", views.email_log_detail, name="email_log_detail"),
+    path("inbox/", views.inbox_view, name="inbox"),
+    path("sent/", views.sent_view, name="sent"),
+
+    # dynamische Routen zuletzt
+    path("email/<str:message_id>/attachments/", views.email_attachments, name="email_attachments"),
+    path("email/<str:message_id>/attachments/<str:attachment_id>/save/", views.save_attachment, name="save_attachment"),
+    path("email/<str:msg_id>/attachments/<str:att_id>/download/", views.email_attachment_download, name="email_attachment_download"),
+    path("email/<str:message_id>/", views.email_detail, name="email_detail"),
+    
+
+    # ✅ Aliase für ältere Templates/Namen:
+    path("email/compose/", views.send_email_view, name="email_compose"),
+    path("email/inbox/", views.inbox_view, name="email_inbox"),
+    path(
+         "email/<str:msg_id>/attachments/<str:att_id>/download/",
+         views.email_attachment_download,
+         name="email_attachment_download",
+),
+
+   
+    # Dateien
+    path("files/list/", views.files_list, name="files_list"),
+    path("files/upload/", views.files_upload, name="files_upload"),
+    path("files/download/<int:file_id>/", views.files_download, name="files_download"),
+    path("files/delete/<int:file_id>/", views.files_delete, name="files_delete"),
+
+    # Kalender
+    path("calendar/", views.calendar_home, name="calendar_home"),
+    path("calendar/list/", views.calendar_list, name="calendar_list"),
+    path("calendar/detail/<str:event_id>/", views.calendar_detail, name="calendar_detail"),
+    path("calendar/create/", views.calendar_create, name="calendar_create"),
+    path("calendar/update/<str:event_id>/", views.calendar_update, name="calendar_update"),
+    path("calendar/delete/<str:event_id>/", views.calendar_delete, name="calendar_delete"),
+
+    # Firmen
+    path("companies/", views.company_list, name="company_list"),
+    path("companies/create/", views.company_create, name="company_create"),
+    path("companies/<int:pk>/", views.company_detail, name="company_detail"),
+    path("companies/<int:pk>/edit/", views.company_update, name="company_update"),
+    path("companies/<int:pk>/delete/", views.company_delete, name="company_delete"),
+
+    # Kontakte
+    path("contacts/", views.contact_list, name="contact_list"),
+    path("contacts/create/", views.contact_create, name="contact_create"),
+    path("contacts/<int:pk>/", views.contact_detail, name="contact_detail"),
+    path("contacts/<int:pk>/edit/", views.contact_update, name="contact_update"),
+    path("contacts/<int:pk>/delete/", views.contact_delete, name="contact_delete"),
+    path("contacts/<int:pk>/call/sipgate/", views.call_contact_via_sipgate, name="call_contact_via_sipgate"),
+    path("voip/fritz/calllist/", views.fritzbox_call_list, name="fritzbox_call_list"),
+    path("voip/call/", views.call_number_via_sipgate, name="call_number_via_sipgate"),
+    
+    # Sipgate
+    path("voip/fritz/calllist/", views.fritzbox_call_list, name="fritzbox_call_list"),
+    path("voip/call/", views.call_number_via_sipgate, name="call_number_via_sipgate"),
+]
+
+*** Datei '(Unbenannt)'
+/etc/systemd/system/mycrm-mailrefresh.timer
+crm_core/management/commands/email_refresh.py
+crm_core/management/commands/email_refresh.py
+/root/mycrm/crm_core/admin.py
+settings.py
+settings.py
+urls.py
+urls.py
+urls.py
+urls.py
+urls.py
+
+*** Datei '* Startup Log *'
+Bearbeite '/etc/joe/joerc'...Bearbeite '/etc/joe/ftyperc'...Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/joerc
+
+*** These modified files were found in JOE when it aborted on Wed Aug 20 12:51:32 2025
+*** JOE was aborted because the terminal closed
+
+*** Datei '(Unbenannt)'
+ndef
+<strong>Von:</strong> {{ message.from.emailAddress.address }}
+def email_detail(request, message_id: str):
+def email_detail
+def email_detail
+def sent_view
+def sent_view
+{% block ... %}
+{% block ... %}
+calendar
+
+*** Datei '(Unbenannt)'
+crm_core/urls.py
+base.html
+urls.py
+views.
+views.py
+/root/mycrm/crm_core/templates/files/list.html
+/root/mycrm/crm_core/templates/files/list.html
+urls.py
+urls.py
+list.html
+views.py
+
+*** Datei '* Startup Log *'
+Bearbeite '/etc/joe/joerc'...Bearbeite '/etc/joe/ftyperc'...Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/joerc
+
+*** These modified files were found in JOE when it aborted on Wed Aug 20 23:53:31 2025
+*** JOE was aborted because the terminal closed
+
+*** Datei '(Unbenannt)'
+def _require_token(request):
+    from allauth.socialaccount.models import SocialToken
+
+    # Debug: aktueller Benutzer
+    print("🟢 Benutzer:", request.user)
+    print("🟢 Authentifiziert:", request.user.is_authenticated)
+
+    # 1) Session-Token (wenn vorhanden)
+    tok = request.session.get("graph_token")
+    if tok:
+        print("🟢 Session-Token gefunden")
+        return tok
+
+    # 2) allauth SocialToken
+    if request.user.is_authenticated:
+        try:
+            token = (
+                SocialToken.objects
+                .filter(account__user=request.user, account__provider="microsoft")
+                .order_by("-id")
+                .first()
+            )
+            if token and token.token:
+                request.session["graph_token"] = token.token
+                print("🟢 SocialToken gefunden:", token.token[:20], "...")
+                return token.token
+            else:
+                print("🔴 Kein gültiger SocialToken")
+        except Exception as e:
+            print("🔴 Fehler beim Abrufen des Tokens:", e)
+
+    return None
+
+*** Datei '(Unbenannt)'
+def _require_token(request):
+    from allauth.socialaccount.models import SocialToken
+
+    # Debug: aktueller Benutzer
+    print("🟢 Benutzer:", request.user)
+    print("🟢 Authentifiziert:", request.user.is_authenticated)
+
+    # 1) Session-Token (wenn vorhanden)
+    tok = request.session.get("graph_token")
+    if tok:
+        print("🟢 Session-Token gefunden")
+        return tok
+
+    # 2) allauth SocialToken
+    if request.user.is_authenticated:
+        try:
+            token = (
+                SocialToken.objects
+                .filter(account__user=request.user, account__provider="microsoft")
+                .order_by("-id")
+                .first()
+            )
+            if token and token.token:
+                request.session["graph_token"] = token.token
+                print("🟢 SocialToken gefunden:", token.token[:20], "...")
+                return token.token
+            else:
+                print("🔴 Kein gültiger SocialToken")
+        except Exception as e:
+            print("🔴 Fehler beim Abrufen des Tokens:", e)
+
+    return None
+
+*** Datei 'views.py'
+import os
+from dotenv import load_dotenv
+load_dotenv(os.getenv("MYCRM_ENV_FILE", "/etc/mycrm.env"))
+from datetime import timezone as dt_timezone[B
+from django.http import HttpResponse
+from django.conf import settings
+from django.contrib import messages
+import json
+import logging
+import requests
+from typing import Dict, Any, Optional
+import logging
+import requests
+from typing import Dict, Any, Optional
+from typing import Dict, Optional
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone as dj_tz
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
+
+from .models import Company, Contact, FileAsset  # EmailLog optional via _import_emaillog_model(), 
+from .forms import CompanyForm, ContactForm 
+from django.template.loader import select_template
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_GET
+
+
+
+LOGGER = logging.getLogger(__name__)
+
+def render_first(request, candidates, context=None):
+    """
+    Rendert das erste existierende Template aus 'candidates' mit 'context'.
+    """
+    tpl = select_template(candidates)
+    return HttpResponse(tpl.render(context or {}, request))
+
+
+
+
+# ---------------------------------------------------------------------
+# Microsoft Graph Basics
+# ---------------------------------------------------------------------
+GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+
+def _graph_headers(token: str) -> Dict[str, str]:
+    return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+
+def _graph_url(path: str) -> str:
+    return f"{GRAPH_BASE}{path if path.startswith('/') else '/' + path}"
+
+
+def _graph_get(token: str, path: str, params: Optional[Dict[str, Any]] = None) -> requests.Response:
+    return requests.get(_graph_url(path), headers=_graph_headers(token), params=params, timeout=30)
+
+
+def _graph_post(token: str, path: str, payload: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> requests.Response:
+    headers = {**_graph_headers(token), "Content-Type": "application/json"}
+    return requests.post(_graph_url(path), headers=headers, data=json.dumps(payload), params=params, timeout=30)
+
+
+def _graph_patch(token: str, path: str, payload: Dict[str, Any]) -> requests.Response:
+    headers = {**_graph_headers(token), "Content-Type": "application/json"}
+    return requests.patch(_graph_url(path), headers=headers, data=json.dumps(payload), timeout=30)
+
+
+def _graph_delete(token: str, path: str) -> requests.Response:
+    return requests.delete(_graph_url(path), headers=_graph_headers(token), timeout=30)
+
+
+# ---------------------------------------------------------------------
+# TZ- und Datums-Helfer
+# ---------------------------------------------------------------------
+def _ensure_aware(dt):
+    return dj_tz.make_aware(dt, dj_tz.get_current_timezone()) if dj_tz.is_naive(dt) else dt
+
+
+def _utc_iso(dt=None) -> str:
+    if dt is None:
+        dt = dj_tz.now()
+    return _ensure_aware(dt).astimezone(dt_timezone.utc).isoformat()
+
+
+def _dt_to_str(graph_dt: Dict[str, str]) -> str:
+    """
+    MS Graph {"dateTime": "...", "timeZone": "..."} -> lokale, hübsche Zeit.
+    """
+    try:
+        from dateutil import parser
+        dt = parser.isoparse(graph_dt.get("dateTime"))
+        return dt.astimezone(timezone.get_current_timezone()).strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return graph_dt.get("dateTime") or ""
+
+
+# ---------------------------------------------------------------------
+# Optionale Modelle/Formulare
+# ---------------------------------------------------------------------
+def _import_emaillog_model():
+    try:
+        from .models import EmailLog  # type: ignore
+        return EmailLog
+    except Exception:
+        return None
+
+
+def dashboard(request):
+    """
+    Einfaches CRM-Dashboard / Startseite
+    """
+    return render(request, "crm_core/dashboard.html", {})
+
+
+
+    return render(request, "email/home.html")
+
+
+
+@require_GET
+def email_home(request):
+    return render(request, "email/home.html")
+
+@require_http_methods(["POST"])
+def email_reply(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:inbox")
+
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+
+    r = _graph_post(token, f"/me/messages/{message_id}/createReply", payload={})
+    if r.status_code not in (200, 201, 202):
+        messages.error(request, f"Antwort konnte nicht erstellt werden ({r.status_code})")
+        return redirect("crm_core:inbox")
+
+    reply_id = r.json().get("id")
+    if reply_id:
+        send_r = _graph_post(token, f"/me/messages/{reply_id}/send", payload={})
+        if send_r.status_code in (200, 202):
+            messages.success(request, "Antwort wurde gesendet.")
+        else:
+            messages.warning(request, "Antwort wurde erstellt, aber nicht gesendet.")
+    else:
+        messages.error(request, "Antwort-ID fehlt.")
+
+    return redirect("crm_core:inbox")
+
+@require_http_methods(["POST"])
+def email_reply_all(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:inbox")
+
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+
+    r = _graph_post(token, f"/me/messages/{message_id}/createReplyAll", payload={})
+    if r.status_code not in (200, 201, 202):
+        messages.error(request, f"Antwort an alle konnte nicht erstellt werden ({r.status_code})")
+        return redirect("crm_core:inbox")
+
+    reply_id = r.json().get("id")
+    if reply_id:
+        send_r = _graph_post(token, f"/me/messages/{reply_id}/send", payload={})
+        if send_r.status_code in (200, 202):
+            messages.success(request, "Antwort an alle wurde gesendet.")
+        else:
+            messages.warning(request, "Antwort an alle wurde erstellt, aber nicht gesendet.")
+    else:
+        messages.error(request, "Antwort-ID fehlt.")
+
+    return redirect("crm_core:inbox")
+
+@require_http_methods(["POST"])
+def email_forward(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:inbox")
+
+    comment = request.POST.get("comment", "")
+    to_recipients = request.POST.get("to", "").split(",")
+
+    payload = {
+        "comment": comment,
+        "toRecipients": [{"emailAddress": {"address": email.strip()}} for email in to_recipients if email.strip()]
+    }
+
+    r = _graph_post(token, f"/me/messages/{message_id}/forward", payload)
+    if r.status_code in (200, 202):
+        messages.success(request, "E-Mail wurde weitergeleitet.")
+    else:
+        messages.error(request, f"Weiterleitung fehlgeschlagen ({r.status_code})")
+
+    return redirect("crm_core:inbox")
+
+
+@require_http_methods(["GET", "POST"])
+def email_compose(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    prefill = {
+        "to": request.GET.get("to", ""),
+        "cc": request.GET.get("cc", ""),
+        "bcc": request.GET.get("bcc", ""),
+        "subject": request.GET.get("subject", ""),
+        "body": request.GET.get("body", ""),
+    }
+
+    if request.method == "POST":
+        to = request.POST.get("to", "")
+        subject = request.POST.get("subject", "")
+        body = request.POST.get("body", "")
+        cc = request.POST.get("cc", "")
+        bcc = request.POST.get("bcc", "")
+
+        message = {
+            "message": {
+                "subject": subject,
+                "body": {
+                    "contentType": "Text",
+                    "content": body
+                },
+                "toRecipients": [{"emailAddress": {"address": addr.strip()}} for addr in to.split(",") if addr.strip()],
+                "ccRecipients": [{"emailAddress": {"address": addr.strip()}} for addr in cc.split(",") if addr.strip()],
+                "bccRecipients": [{"emailAddress": {"address": addr.strip()}} for addr in bcc.split(",") if addr.strip()],
+            },
+            "saveToSentItems": "true"
+        }
+
+        r = _graph_post(token, "/me/sendMail", payload=message)
+        if r.status_code == 202:
+            messages.success(request, "E-Mail gesendet.")
+            return redirect("crm_core:sent")
+        else:
+            messages.error(request, f"Senden fehlgeschlagen ({r.status_code}).")
+
+        prefill.update({"to": to, "cc": cc, "bcc": bcc, "subject": subject, "body": body})
+
+    return render(request, "email/send.html", {"prefill": prefill})
+
+
+@require_GET
+def microsoft_auth_init(request):
+    # leitet zum allauth Microsoft Login
+    return redirect("/accounts/microsoft/login/")
+
+@require_GET
+def microsoft_auth_callback(request):
+    # Platzhalter – nach erfolgreichem Login zurück ins Dashboard
+    messages.success(request, "Microsoft Login Callback erreicht (Platzhalter).")
+    return redirect("crm_core:dashboard")
+
+@require_GET
+def company_list(request):
+    companies = Company.objects.all().order_by("name")
+    return render(request, "crm_core/company_list.html", {"companies": companies})
+
+@require_GET
+def company_detail(request, pk: int):
+    company = get_object_or_404(Company, pk=pk)
+    return render(request, "crm_core/company_detail.html", {"company": company})
+
+@require_http_methods(["GET", "POST"])
+def company_create(request):
+    if request.method == "POST":
+        form = CompanyForm(request.POST)
+        if form.is_valid():
+            company = form.save()
+            messages.success(request, "Firma wurde erstellt.")
+            return redirect("crm_core:company_detail", pk=company.pk)
+    else:
+        form = CompanyForm()
+    return render(request, "crm_core/company_form.html", {"form": form})
+
+@require_http_methods(["GET", "POST"])
+def company_update(request, pk: int):
+    company = get_object_or_404(Company, pk=pk)
+    if request.method == "POST":
+        form = CompanyForm(request.POST, instance=company)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Firma wurde aktualisiert.")
+            return redirect("crm_core:company_detail", pk=company.pk)
+    else:
+        form = CompanyForm(instance=company)
+    return render(request, "crm_core/company_form.html", {"form": form, "company": company})
+
+
+@require_http_methods(["GET", "POST"])
+def company_delete(request, pk: int):
+    company = get_object_or_404(Company, pk=pk)
+    if request.method == "GET":
+        return render(request, "crm_core/companies/delete_confirm.html", {"company": company})
+    company.delete()
+    messages.success(request, "Firma wurde gelöscht.")
+    return redirect("crm_core:company_list")
+
+@require_GET
+def contact_list(request):
+    contacts = Contact.objects.all().order_by("last_name", "first_name")
+    return render(request, "crm_core/contact_list.html", {"contacts": contacts})
+
+@require_GET
+def contact_detail(request, pk: int):
+    contact = get_object_or_404(Contact, pk=pk)
+    return render(request, "crm_core/contact_detail.html", {"contact": contact})
+
+@require_http_methods(["GET", "POST"])
+def contact_create(request):
+    if request.method == "POST":
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            contact = form.save()
+            messages.success(request, "Kontakt wurde erstellt.")
+            return redirect("crm_core:contact_detail", pk=contact.pk)
+    else:
+        form = ContactForm()
+    return render(request, "crm_core/contact_form.html", {"form": form})
+
+@require_http_methods(["GET", "POST"])
+def contact_update(request, pk: int):
+    contact = get_object_or_404(Contact, pk=pk)
+    if request.method == "POST":
+        form = ContactForm(request.POST, instance=contact)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Kontakt wurde aktualisiert.")
+            return redirect("crm_core:contact_detail", pk=contact.pk)
+    else:
+        form = ContactForm(instance=contact)
+    return render(request, "crm_core/contact_form.html", {"form": form, "contact": contact})
+
+@require_http_methods(["GET", "POST"])
+def contact_delete(request, pk: int):
+    contact = get_object_or_404(Contact, pk=pk)
+    if request.method == "GET":
+        return render(request, "crm_core/contacts/delete_confirm.html", {"contact": contact})
+    contact.delete()
+    messages.success(request, "Kontakt wurde gelöscht.")
+    return redirect("crm_core:contact_list")
+
+
+@require_GET
+def inbox_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    r = _graph_get(token, "/me/mailFolders/inbox/messages", params={"$top": 25, "$orderby": "receivedDateTime DESC"})
+    print("📥 Statuscode:", r.status_code)
+    print("📥 Antwort:", r.text[:500])
+    if r.status_code == 200 and not r.json().get("value"):
+        messages.warning(request, "⚠️ Keine E-Mails gefunden (API-Antwort leer?)")
+    items = r.json().get("value", []) if r.status_code == 200 else []
+    return render(request, "email/inbox.html", {"emails": items})
+
+@require_GET
+def sent_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    r = _graph_get(token, "/me/mailFolders/sentitems/messages", params={"$top": 25, "$orderby": "receivedDateTime DESC"})
+    items = r.json().get("value", []) if r.status_code == 200 else []
+    return render(request, "email/sent.html", {"emails": items})
+
+@require_GET
+def email_refresh(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    # Nur Dummy – tatsächliche Sync-Logik kann später ergänzt werden
+    messages.success(request, "E-Mail-Liste wurde aktualisiert.")
+    return redirect("crm_core:inbox")
+
+@require_GET
+def email_detail(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    r = _graph_get(token, f"/me/messages/{message_id}")
+    if r.status_code != 200:
+        messages.error(request, f"E-Mail konnte nicht geladen werden ({r.status_code})")
+        return redirect("crm_core:inbox")
+
+    msg = r.json()
+    attachments = []
+    att_r = _graph_get(token, f"/me/messages/{message_id}/attachments")
+    if att_r.status_code == 200:
+        attachments = att_r.json().get("value", [])
+
+    return render(
+        request,
+        "crm_core/email_detail.html",
+        {"message": msg, "attachments": attachments, "message_id": message_id},
+    )
+
+@require_POST
+def email_delete(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    r = _graph_delete(token, f"/me/messages/{message_id}")
+    if r.status_code in (200, 204):
+        messages.success(request, "E-Mail gelöscht.")
+    else:
+        messages.error(request, f"E-Mail konnte nicht gelöscht werden ({r.status_code}).")
+    return redirect("crm_core:inbox")
+
+@require_GET
+def email_attachment_download(request, message_id: str, attachment_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    r = _graph_get(token, f"/me/messages/{message_id}/attachments/{attachment_id}")
+    if r.status_code != 200:
+        messages.error(request, "Anhang konnte nicht heruntergeladen werden.")
+        return redirect("crm_core:email_detail", message_id=message_id)
+
+    att = r.json()
+    content = att.get("contentBytes")
+    filename = att.get("name", "attachment")
+
+    import base64
+    from django.http import HttpResponse
+
+    if content:
+        data = base64.b64decode(content)
+        response = HttpResponse(data, content_type="application/octet-stream")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    messages.error(request, "Anhang war leer.")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_GET
+def email_inbox(request):
+    # historischer Alias -> leitet auf die neue Inbox-Ansicht weiter
+    return inbox_view(request)
+
+@require_GET
+def email_sent(request):
+    # historischer Alias -> leitet auf die neue Sent-Ansicht weiter
+    return sent_view(request)
+
+@require_GET
+def email_attachments(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    r = _graph_get(token, f"/me/messages/{message_id}/attachments")
+    if r.status_code == 200:
+        attachments = r.json().get("value", [])
+    else:
+        attachments = []
+        messages.error(request, "Anhänge konnten nicht geladen werden.")
+
+    return render(request, "email/attachments.html", {
+        "attachments": attachments,
+        "message_id": message_id,
+    })
+
+@require_http_methods(["GET", "POST"])
+def contact_create_from_email(request):
+    """
+    Erstellt einen neuen Kontakt basierend auf Maildaten.
+    Erwartet: request.GET["name"], request.GET["email"]
+    """
+    initial_data = {}
+    if "name" in request.GET:
+        initial_data["first_name"] = request.GET["name"]
+    if "email" in request.GET:
+        initial_data["email"] = request.GET["email"]
+
+    if request.method == "POST":
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            contact = form.save()
+            messages.success(request, "Kontakt aus E-Mail erstellt.")
+            return redirect("crm_core:contact_detail", pk=contact.pk)
+    else:
+        form = ContactForm(initial=initial_data)
+
+    return render(request, "crm_core/contact_form.html", {"form": form})
+
+@require_GET
+def email_log_list(request):
+    # Beispielhafte Logs – später durch DB/Graph-Daten ersetzen
+    logs = [
+        {"timestamp": "2025-08-18 21:00", "status": "Gesendet",     "recipient": "a@example.com"},
+        {"timestamp": "2025-08-18 21:15", "status": "Fehlgeschlagen","recipient": "b@example.com"},
+    ]
+    return render(request, "email/logs.html", {"logs": logs})
+
+# --- File Manager (echte Dateien im MEDIA_ROOT) -----------------------
+import os
+from pathlib import Path
+from datetime import datetime
+from django.conf import settings
+from django.contrib import messages
+from django.http import FileResponse, Http404
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
+
+
+def _media_root() -> Path:
+    root = getattr(settings, "MEDIA_ROOT", None)
+    if not root:
+        # Fallback: ./media relativ zum Projekt (nur wenn MEDIA_ROOT nicht gesetzt)
+        root = Path(__file__).resolve().parent.parent.parent / "media"
+    return Path(root).resolve()
+
+
+def _safe_media_path(filename: str) -> Path:
+    """
+    Verhindert Path-Traversal; erlaubt nur Pfade unterhalb MEDIA_ROOT.
+    """
+    base = _media_root()
+    target = (base / filename).resolve()
+    if not str(target).startswith(str(base)):
+        # z.B. "../../etc/passwd"
+        raise Http404("Ungültiger Dateipfad.")
+    return target
+
+
+def _human_size(num: int) -> str:
+    for unit in ["Bytes", "KB", "MB", "GB", "TB"]:
+        if num < 1024.0 or unit == "TB":
+            return f"{num:.0f} {unit}" if unit == "Bytes" else f"{num:.1f} {unit}"
+        num /= 1024.0
+    return f"{num:.1f} TB"
+
+
+@require_GET
+def files_list(request):
+    base = _media_root()
+    if not base.exists():
+        base.mkdir(parents=True, exist_ok=True)
+
+    items = []
+    for p in sorted(base.iterdir(), key=lambda x: x.name.lower()):
+        if not p.is_file():
+            continue
+        stat = p.stat()
+        items.append({
+            "name": p.name,
+            "size": _human_size(stat.st_size),
+            "uploaded": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+        })
+
+    return render(request, "files/list.html", {"files": items})
+
+
+@require_http_methods(["GET", "POST"])
+def files_upload(request):
+    base = _media_root()
+    base.mkdir(parents=True, exist_ok=True)
+
+    if request.method == "GET":
+        return render(request, "files/upload.html")
+
+    # POST
+    f = request.FILES.get("file")
+    if not f:
+        messages.error(request, "Keine Datei ausgewählt.")
+        return redirect("crm_core:files_upload")
+
+    # Kollisionen vermeiden: vorhandene Dateien nummerieren
+    dest = base / f.name
+    if dest.exists():
+        stem = dest.stem
+        suffix = dest.suffix
+        i = 1
+        while True:
+            candidate = base / f"{stem}_{i}{suffix}"
+            if not candidate.exists():
+                dest = candidate
+                break
+            i += 1
+
+    with dest.open("wb+") as out:
+        for chunk in f.chunks():
+            out.write(chunk)
+
+    messages.success(request, f"Datei {dest.name} erfolgreich hochgeladen.")
+    return redirect("crm_core:files_list")
+
+
+@require_GET
+def files_download(request, filename: str):
+    try:
+        path = _safe_media_path(filename)
+    except Http404:
+        messages.error(request, "Ungültiger Dateiname.")
+        return redirect("crm_core:files_list")
+
+    if not path.exists() or not path.is_file():
+        messages.error(request, "Datei nicht gefunden.")
+        return redirect("crm_core:files_list")
+
+    return FileResponse(open(path, "rb"), as_attachment=True, filename=path.name)
+
+
+@require_POST
+def files_delete(request, filename: str):
+    try:
+        path = _safe_media_path(filename)
+    except Http404:
+        messages.error(request, "Ungültiger Dateiname.")
+        return redirect("crm_core:files_list")
+
+    if path.exists() and path.is_file():
+        try:
+            path.unlink()
+            messages.success(request, f"{path.name} wurde gelöscht.")
+        except Exception as e:
+            messages.error(request, f"Datei konnte nicht gelöscht werden: {e}")
+    else:
+        messages.warning(request, "Datei war nicht mehr vorhanden.")
+    return redirect("crm_core:files_list")
+
+
+
+# --- Fritzbox Calllist (CSV, robust mit Fallbacks) -------------------
+import os
+import csv
+import requests
+from requests.auth import HTTPBasicAuth
+from django.views.decorators.http import require_GET
+from django.contrib import messages
+from django.shortcuts import render
+
+def _fritz_env():
+    host = os.getenv("FRITZBOX_HOST", "fritz.box").strip()
+    scheme = os.getenv("FRITZBOX_SCHEME", "http").strip().lower()  # "http" oder "https"
+    verify_env = os.getenv("FRITZBOX_VERIFY_TLS", "true").strip().lower()
+    verify = verify_env in ("1", "true", "yes")
+    user = os.getenv("FRITZBOX_USERNAME", "").strip()
+    pwd  = os.getenv("FRITZBOX_PASSWORD", "").strip()
+    base = f"{scheme}://{host}"
+    return base, user, pwd, verify
+
+def _fritz_parse_csv(text: str):
+    if isinstance(text, bytes):
+        try:
+            text = text.decode("iso-8859-1", errors="ignore")
+        except Exception:
+            text = text.decode("utf-8", errors="ignore")
+    if not text:
+        return []
+
+    lines = text.replace("\r\n", "\n").splitlines()
+    if not lines:
+        return []
+
+    reader = csv.reader(lines, delimiter=';')
+    rows = list(reader)
+    if not rows:
+        return []
+
+    header = [h.strip().lower() for h in rows[0]]
+    data = rows[1:]
+
+    def idx(*cands):
+        for c in cands:
+            try:
+                return header.index(c)
+            except ValueError:
+                continue
+        return None
+
+    i_typ   = idx("typ", "type")
+    i_date  = idx("datum", "date")
+    i_name  = idx("name")
+    i_from  = idx("rufnummer", "caller", "from")
+    i_to    = idx("angerufene rufnummer", "called", "to", "zielrufnummer")
+    i_own   = idx("eigene rufnummer", "eigenenummer", "ownnumber")
+    i_dur   = idx("dauer", "duration")
+    i_dev   = idx("gerät", "device", "line")
+
+    items = []
+    for r in data:
+        def g(i): return r[i].strip() if (i is not None and i < len(r)) else ""
+        items.append({
+            "type":     g(i_typ),
+            "date":     g(i_date),
+            "name":     g(i_name),
+            "caller":   g(i_from),
+            "target":   g(i_to),
+            "own":      g(i_own),
+            "duration": g(i_dur),
+            "device":   g(i_dev),
+        })
+    return items
+
+def _fritz_get_sid(base: str, user: str, pwd: str, verify: bool, timeout: int = 10) -> str | None:
+    """
+    Versucht, via login_sid.lua eine SID zu bekommen.
+    Einfacher Pfad: POST username/password (ab neueren FritzOS-Versionen möglich).
+    """
+    try:
+        # 1) initialer Abruf (optional, um BlockTime zu sehen)
+        requests.get(f"{base}/login_sid.lua", timeout=timeout, verify=verify)
+
+        # 2) direkter Login via POST (wenn erlaubt)
+        r = requests.post(
+            f"{base}/login_sid.lua",
+            data={"username": user, "password": pwd},
+            timeout=timeout,
+            verify=verify,
+        )
+        if r.status_code != 200:
+            return None
+
+        # simple XML-Auswertung ohne xml-Parser
+        text = r.text
+        # <SID>0123456789abcdef</SID>
+        start = text.find("<SID>")
+        end = text.find("</SID>")
+        if start != -1 and end != -1:
+            sid = text[start+5:end].strip()
+            if sid and sid != "0000000000000000":
+                return sid
+    except Exception:
+        return None
+    return None
+
+def _try_fetch_csv(base: str, user: str, pwd: str, verify: bool) -> tuple[list[dict], str | None]:
+    """
+    Probiert beide CSV-Pfade:
+      1) /calllist.lua?csv=
+      2) /fon_num/foncalls_list.lua?csv=
+    Erst mit Basic-Auth, dann (falls nötig) mit SID.
+    """
+    paths = ["/calllist.lua", "/fon_num/foncalls_list.lua"]
+    timeout = 10
+
+    # A) Direkt mit Basic-Auth probieren
+    for rel in paths:
+        url = f"{base}{rel}?csv="
+        try:
+            r = requests.get(url, auth=HTTPBasicAuth(user, pwd), timeout=timeout, verify=verify)
+            if r.status_code == 200 and r.content:
+                items = _fritz_parse_csv(r.content)
+                if items:
+                    return items, url
+            # 404/403/401 -> später Versuch mit SID
+        except Exception:
+            pass
+
+    # B) Mit SID probieren
+    sid = _fritz_get_sid(base, user, pwd, verify)
+    if sid:
+        for rel in paths:
+            url = f"{base}{rel}?csv=&sid={sid}"
+            try:
+                r = requests.get(url, timeout=timeout, verify=verify)
+                if r.status_code == 200 and r.content:
+                    items = _fritz_parse_csv(r.content)
+                    if items:
+                        return items, url
+            except Exception:
+                pass
+
+    return [], None
+
+@require_GET
+def fritzbox_call_list(request):
+    base, user, pwd, verify = _fritz_env()
+
+    if not user or not pwd:
+        messages.error(request, "Fritzbox-Zugangsdaten fehlen (FRITZBOX_USERNAME / FRITZBOX_PASSWORD).")
+        return render(request, "crm_core/voip/call_list.html", {"calls": []})
+
+    calls, used_url = _try_fetch_csv(base, user, pwd, verify)
+    if not calls:
+        messages.error(request, "Anrufliste konnte nicht geladen werden (404/401/leer). "
+                                 "Prüfe Pfad, Login und Rechte der Fritzbox.")
+    else:
+        messages.success(request, f"Anrufliste geladen ({len(calls)} Einträge).")
+
+    return render(request, "crm_core/voip/call_list.html", {"calls": calls})
+
+
+
+
+# ---------------------------------------------------------------------
+# MS Graph Token holen – robust
+# ---------------------------------------------------------------------
+
+@require_GET
+def token_debug(request):
+    token = _require_token(request)
+    if token:
+        return HttpResponse(f"Token gefunden: {token[:50]}...")
+    return HttpResponse("❌ Kein gültiger Microsoft-Token.")
+
+
+def _require_token(request):
+    """
+    Holt einen gültigen Microsoft OAuth Token aus Session oder allauth.
+    """
+    from allauth.socialaccount.models import SocialToken
+
+    # Debug-Ausgabe
+    print("🟢 Benutzer:", request.user)
+    print("🟢 Authentifiziert:", request.user.is_authenticated)
+
+    # 1. Session-Token
+    tok = request.session.get("graph_token")
+    if tok:
+        print("🟢 Session-Token gefunden")
+        return tok
+
+    # 2. Token aus allauth
+    if request.user.is_authenticated:
+        try:
+            token = (
+                SocialToken.objects
+                .filter(account__user=request.user, account__provider="microsoft")
+                .order_by("-id")
+                .first()
+            )
+            if token and token.token:
+                print("🟢 SocialToken gefunden:", token.token[:30], "...")
+                request.session["graph_token"] = token.token
+                return token.token
+            else:
+                print("🔴 Kein gültiger SocialToken gefunden")
+        except Exception as e:
+            print("🔴 Ausnahme beim Abrufen des Tokens:", e)
+
+    print("🔴 Kein Token verfügbar")
+    return None
+
+@require_http_methods(["GET", "POST"])
+def email_compose(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    prefill = {
+        "to": request.GET.get("to", ""),
+        "cc": request.GET.get("cc", ""),
+        "bcc": request.GET.get("bcc", ""),
+        "subject": request.GET.get("subject", ""),
+        "body": request.GET.get("body", ""),
+    }
+
+    if request.method == "POST":
+        to = request.POST.get("to", "")
+        subject = request.POST.get("subject", "")
+        body = request.POST.get("body", "")
+        cc = request.POST.get("cc", "")
+        bcc = request.POST.get("bcc", "")
+
+        message = {
+            "message": {
+                "subject": subject,
+                "body": {
+                    "contentType": "Text",
+                    "content": body
+                },
+                "toRecipients": [{"emailAddress": {"address": addr.strip()}} for addr in to.split(",") if addr.strip()],
+                "ccRecipients": [{"emailAddress": {"address": addr.strip()}} for addr in cc.split(",") if addr.strip()],
+                "bccRecipients": [{"emailAddress": {"address": addr.strip()}} for addr in bcc.split(",") if addr.strip()],
+            },
+            "saveToSentItems": "true"
+        }
+
+        r = _graph_post(token, "/me/sendMail", payload=message)
+        if r.status_code == 202:
+            messages.success(request, "E-Mail gesendet.")
+            return redirect("crm_core:sent")
+        else:
+            messages.error(request, f"Senden fehlgeschlagen ({r.status_code}).")
+
+        # Bei Fehler neu befüllen
+        prefill.update({"to": to, "cc": cc, "bcc": bcc, "subject": subject, "body": body})
+
+    return render(request, "email/send.html", {"prefill": prefill})
+
+
+# Kalender
+from django.views.decorators.http import require_GET, require_POST
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponseNotAllowed
+
+@require_GET
+def calendar_detail(request, event_id):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    r = _graph_get(token, f"/me/events/{event_id}")
+    if r.status_code != 200:
+        messages.error(request, "Termin nicht gefunden.")
+        return redirect("crm_core:calendar_list")
+
+    event = r.json()
+    return render(request, "calendar/detail.html", {"event": event})
+
+
+@require_http_methods(["GET", "POST"])
+def calendar_edit(request, event_id):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        r = _graph_get(token, f"/me/events/{event_id}")
+        if r.status_code != 200:
+            messages.error(request, "Termin nicht gefunden.")
+            return redirect("crm_core:calendar_list")
+
+        event = r.json()
+        return render(request, "calendar/edit.html", {"event": event})
+
+    # POST – Daten speichern
+    subject = request.POST.get("subject")
+    body = request.POST.get("body")
+    start = request.POST.get("start")
+    end = request.POST.get("end")
+
+    payload = {
+        "subject": subject,
+        "body": {
+            "contentType": "Text",
+            "content": body,
+        },
+        "start": {
+            "dateTime": start,
+            "timeZone": "Europe/Vienna",
+        },
+        "end": {
+            "dateTime": end,
+            "timeZone": "Europe/Vienna",
+        },
+    }
+
+    r = _graph_patch(token, f"/me/events/{event_id}", payload=payload)
+    if r.status_code == 200:
+        messages.success(request, "Termin aktualisiert.")
+    else:
+        messages.error(request, "Änderung fehlgeschlagen.")
+
+    return redirect("crm_core:calendar_list")
+
+
+@require_http_methods(["GET", "POST"])
+def calendar_delete(request, event_id):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        # Abruf zum Anzeigen des Lösch-Dialogs
+        r = _graph_get(token, f"/me/events/{event_id}")
+        if r.status_code != 200:
+            messages.error(request, "Termin nicht gefunden.")
+            return redirect("crm_core:calendar_list")
+
+        event = r.json()
+        return render(request, "calendar/delete_confirm.html", {"event": event})
+
+    # POST – Löschen bestätigen
+    r = _graph_delete(token, f"/me/events/{event_id}")
+    if r.status_code == 204:
+        messages.success(request, "Termin gelöscht.")
+    else:
+        messages.error(request, "Löschen fehlgeschlagen.")
+
+    return redirect("crm_core:calendar_list")
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:home")
+
+    # Abruf der Kalendertermine über Microsoft Graph API
+    r = _graph_get(token, "/me/events?$orderby=start/dateTime desc")
+
+    if r.status_code != 200:
+        messages.error(request, "Fehler beim Laden der Termine.")
+        return redirect("crm_core:home")
+
+    events = r.json().get("value", [])
+    return render(request, "calendar/index.html", {"events": events})
+
+@require_http_methods(["GET", "POST"])
+def calendar_create(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        return render(request, "calendar/create.html")
+
+    # POST – Termin anlegen
+    subject = request.POST.get("subject")
+    body = request.POST.get("body")
+    start = request.POST.get("start")
+    end = request.POST.get("end")
+
+    event = {
+        "subject": subject,
+        "body": {
+            "contentType": "Text",
+            "content": body
+        },
+        "start": {
+            "dateTime": start,
+            "timeZone": "Europe/Vienna"
+        },
+        "end": {
+            "dateTime": end,
+            "timeZone": "Europe/Vienna"
+        }
+    }
+
+    r = _graph_post(token, "/me/events", payload=event)
+    if r.status_code == 201:
+        messages.success(request, "Termin erfolgreich erstellt.")
+        return redirect("crm_core:calendar_list")
+    else:
+        messages.error(request, "Erstellen fehlgeschlagen.")
+        return render(request, "calendar/create.html", {"prefill": request.POST})
+
+*** Datei '(Unbenannt)'
+<strong>Von:</strong> {{ message.from.emailAddress.address }}
+def email_detail(request, message_id: str):
+def email_detail
+def email_detail
+def sent_view
+def sent_view
+{% block ... %}
+{% block ... %}
+calendar
+voip
+_require_token(request)
+def _require_token(request)
+email_compose
+
+*** Datei '(Unbenannt)'
+crm_core/templates/crm_core/companies/delete_confirm.html
+crm_core/templates/crm_core/companies/delete_confirm.html
+/etc/mycrm.env
+views.py
+urls.py
+crm_core/templates/crm_core/voip/call_list.html
+crm_core/templates/crm_core/voip/call_list.html
+views.py
+crm_core/templates/crm_core/voip/call_number.html
+views.py
+views.py
+
+*** Datei '* Startup Log *'
+Bearbeite '/etc/joe/joerc'...Bearbeite '/etc/joe/ftyperc'...Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/joerc

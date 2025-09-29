@@ -1,0 +1,11 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Firma bearbeiten{% endblock %}
+{% block content %}
+<h1>Firma</h1>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn" type="submit">Speichern</button>
+  <a class="btn" href="{% url 'crm_core:company_list' %}">Abbrechen</a>
+</form>
+{% endblock %}

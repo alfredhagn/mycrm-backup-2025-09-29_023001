@@ -1,0 +1,97 @@
+{% extends "crm_core/base.html" %}
+{% block title %}Zeiterfassung{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <h1>⏱ Zeiterfassung</h1>
+      <p class="muted">Timer & manuelle Eingabe.</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="{% url 'timeclock:export_form' %}">⬇️ Export</a>
+      <a class="btn" href="{% url 'timeclock:new' %}">➕ Manueller Eintrag</a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    {% if running %}
+      <p>
+        <strong>Laufender Timer:</strong>
+        {{ running.project }} – {{ running.start_at|date:"Y-m-d H:i" }}
+        {% if running.is_remote %} (Remote){% else %} (Vor Ort){% endif %}
+        {% if running.note %} – {{ running.note }}{% endif %}
+      </p>
+      <form method="post" action="{% url 'timeclock:stop' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'timeclock:dashboard' %}">
+        <button class="btn">⏹ Stop</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'timeclock:start' %}" style="display:grid;gap:8px;max-width:520px">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'timeclock:dashboard' %}">
+        <label>Projekt
+          <select name="project">
+            <option value="">– Allgemein –</option>
+            {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Bemerkung
+          <input type="text" name="note" placeholder="z. B. Kundengespräch">
+        </label>
+        <label style="display:flex;gap:6px;align-items:center">
+          <input type="checkbox" name="is_remote" value="1" checked> Remote (aus = Vor Ort)
+        </label>
+        <button class="btn">▶️ Start</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Letzte Einträge</h3>
+    {% if entries %}
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Projekt</th>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Ort</th>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Start</th>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Ende</th>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Dauer (min)</th>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Bemerkung</th>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">Aktion</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+            <tr>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">{{ e.project }}</td>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">{{ e.place }}</td>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">{{ e.start|date:"Y-m-d H:i" }}</td>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">{% if e.end %}{{ e.end|date:"Y-m-d H:i" }}{% else %}–{% endif %}</td>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">{% if e.duration_min is not None %}{{ e.duration_min }}{% else %}–{% endif %}</td>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">{{ e.note }}</td>
+              <td style="padding:6px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <a class="btn" href="{% url 'timeclock:edit' e.id %}">✏️ Bearbeiten</a>
+                  <a href="{% url 'timeclock:project_list' %}" class="btn btn-secondary">🔧 Projekte verwalten</a>
+                  <form method="post" action="{% url 'timeclock:delete' e.id %}" onsubmit="return confirm('Eintrag löschen?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'timeclock:dashboard' %}">
+                    <button class="btn">🗑 Löschen</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Noch keine Einträge.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load datetime_extras %}
+
+{% block content %}
+  <h2>Gesendete E-Mails</h2>
+
+  {% if logs %}
+    <table border="1" cellpadding="8" cellspacing="0">
+      <thead>
+        <tr>
+          <th>Betreff</th>
+          <th>Empfänger</th>
+          <th>Gesendet am</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for email in logs %}
+          <tr>
+            <td>{{ email.subject }}</td>
+            <td>
+              {% if email.contact %}
+                {{ email.contact.email }}
+              {% else %}
+                <em>Unbekannt</em>
+              {% endif %}
+            </td>
+            <td>{{ email.timestamp|date:"d.m.Y H:i" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Keine E-Mails gesendet.</p>
+<a href="{% url 'crm_core:email_home' %}" class="btn btn-secondary">Zur E-Mail-Übersicht</a>
+  {% endif %}
+
+  <br>
+  <a href="{% url 'crm_core:home' %}" class="btn btn-primary">Zurück zur Startseite</a>
+{% endblock %}

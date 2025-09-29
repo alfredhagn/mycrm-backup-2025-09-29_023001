@@ -1,0 +1,24 @@
+<h1>Termin bearbeiten</h1>
+
+<form method="post">
+  {% csrf_token %}
+  <p>
+    <label for="subject">Betreff:</label><br>
+    <input type="text" name="subject" id="subject" value="{{ event.subject }}" required>
+  </p>
+  <p>
+    <label for="body">Beschreibung:</label><br>
+    <textarea name="body" id="body" rows="4">{{ event.body.content }}</textarea>
+  </p>
+  <p>
+    <label for="start">Beginn:</label><br>
+    <input type="datetime-local" name="start" id="start" value="{{ event.start.dateTime|slice:":16" }}" required>
+  </p>
+  <p>
+    <label for="end">Ende:</label><br>
+    <input type="datetime-local" name="end" id="end" value="{{ event.end.dateTime|slice:":16" }}" required>
+  </p>
+  <button type="submit">Änderungen speichern</button>
+</form>
+
+<p><a href="{% url 'crm_core:calendar_list' %}">Zurück zur Übersicht</a></p>

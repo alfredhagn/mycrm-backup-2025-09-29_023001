@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teams-Links</title>
+<style>
+ body{font-family:system-ui,Arial,sans-serif;margin:24px}
+ h1{margin:0 0 12px}
+ .controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+ .btn{display:inline-block;padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}
+ .btn.active{background:#eef6ff;border-color:#b6d4fe}
+ ul{padding-left:18px}
+ li{margin:8px 0}
+ .meta{opacity:.8;font-size:.9rem}
+ .nolink{opacity:.7}
+ .copy{margin-left:8px}
+</style>
+</head>
+<body>
+<h1>Teams-Links</h1>
+
+<div class="controls">
+  {% with q=request.GET.days|default:'1' %}
+    <a class="btn {% if q == '1' %}active{% endif %}" href="?days=1">Heute</a>
+    <a class="btn {% if q == '2' %}active{% endif %}" href="?days=2">Heute + morgen</a>
+  {% endwith %}
+</div>
+
+<ul>
+{% for e in events %}
+  <li>
+    <strong>{{ e.subject }}</strong>
+    <span class="meta">— {{ e.start }}{% if e.end %}–{{ e.end }}{% endif %}{% if e.location %} — {{ e.location }}{% endif %}</span>
+    {% if e.link %}
+      — <a href="{{ e.link }}" target="_blank" rel="noopener">Beitreten</a>
+      <button class="btn copy" data-link="{{ e.link|escape }}">Link kopieren</button>
+    {% else %}
+      — <span class="nolink">(kein Teams-Link)</span>
+    {% endif %}
+  </li>
+{% empty %}
+  <li>Keine Termine gefunden.</li>
+{% endfor %}
+</ul>
+
+<script>
+document.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.copy');
+  if (!btn) return;
+  const url = btn.getAttribute('data-link');
+  try {
+    await navigator.clipboard.writeText(url);
+    const old = btn.textContent;
+    btn.textContent = 'Kopiert!';
+    setTimeout(()=>btn.textContent = old, 1200);
+  } catch(e) {
+    alert('Kopieren fehlgeschlagen');
+  }
+});
+</script>
+</body>
+</html>

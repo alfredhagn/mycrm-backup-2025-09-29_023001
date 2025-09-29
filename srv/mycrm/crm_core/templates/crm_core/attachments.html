@@ -1,0 +1,24 @@
+{% extends 'crm_core/base.html' %}
+{% load datetime_extras %}
+{% block content %}
+<h2>E-Mail Anhänge</h2>
+
+{% if attachments %}
+    <ul>
+    {% for att in attachments %}
+        <li>
+            {{ att.name }} 
+            {% if att.contentBytes %}
+                <a href="data:{{ att.contentType }};base64,{{ att.contentBytes }}" download="{{ att.name }}">Download</a>
+            {% else %}
+                (Kein Inhalt verfügbar)
+            {% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>Keine Anhänge gefunden.</p>
+{% endif %}
+
+<p><a href="{% url 'crm_core:inbox' %}">Zurück zum Posteingang</a></p>
+{% endblock %}

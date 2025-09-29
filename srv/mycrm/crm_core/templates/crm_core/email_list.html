@@ -1,0 +1,19 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block content %}
+<h1>Posteingang</h1>
+
+{% if messages %}
+    <ul>
+        {% for m in messages %}
+            <li>
+                <a href="{% url 'crm_core:email_detail' m.id %}">{{ m.subject|default:"(kein Betreff)" }}</a>
+                – {{ m.from.emailAddress.name }} – {{ m.receivedDateTime }}
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>Keine E-Mails gefunden.</p>
+{% endif %}
+
+{% endblock %}

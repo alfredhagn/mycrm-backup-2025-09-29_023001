@@ -1,0 +1,76 @@
+# --- EMAIL COMPOSE with HTML signature (append at end of crm_core/views.py) ---
+from django.views.decorators.http import require_http_methods
+import re as _re_sig
+
+_SIGNATURE_HTML = (
+    '<div style="font-family: Arial, sans-serif; font-size: 11pt; color:#000;">'
+    '<div><strong>Alfred Hagn</strong></div>'
+    '<div>Unternehmensberatung / Interim-Management</div>'
+    '<div>Rudolf-Waisenhorngasse 138/4</div>'
+    '<div>A-1230 Wien</div>'
+    '<div>UID ATU77717712</div>'
+    '<div>Festnetz: +49 841 45 44 240</div>'
+    '<div>Mobil: +43 681 8175 26 46</div>'
+    '<div>alfred.hagn@hagninterim.de</div>'
+    '</div>'
+)
+
+@require_http_methods(["GET","POST"])
+def email_compose(request):
+    """
+    Zeigt Compose-Formular und sendet über MS Graph.
+    - Bei aktiver „use_signature“ Checkbox wird HTML verschickt und die Signatur angehängt.
+    - Ohne Signatur wird im Textmodus gesendet.
+    """
+    if request.method == "GET":
+        prefill = {k: (request.GET.get(k) or "") for k in ("to","cc","bcc","subject","body")}
+        return render(request, "email/send.html", {"prefill": prefill})
+
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    to  = (request.POST.get("to") or "").strip()
+    cc  = (request.POST.get("cc") or "").strip()
+    bcc = (request.POST.get("bcc") or "").strip()
+    subject = (request.POST.get("subject") or "").strip()
+    body    = (request.POST.get("body") or "").strip()
+    use_sig = (request.POST.get("use_signature") == "on")
+
+    def _parse(addr_line: str):
+        if not addr_line:
+            return []
+        parts = [p.strip() for p in _re_sig.split(r"[;,]+", addr_line) if p.strip()]
+        return [{"emailAddress": {"address": p}} for p in parts]
+
+    if use_sig:
+        body_html = (body or "").replace("\n", "<br>")
+        if body_html:
+            body_html += "<br><br>"
+        body_html += _SIGNATURE_HTML
+        body_payload = {"contentType": "HTML", "content": body_html}
+    else:
+        body_payload = {"contentType": "Text", "content": body or ""}
+
+    message = {
+        "subject": subject or "(ohne Betreff)",
+        "body": body_payload,
+        "toRecipients": _parse(to),
+    }
+    cc_list = _parse(cc)
+    bcc_list = _parse(bcc)
+    if cc_list:
+        message["ccRecipients"] = cc_list
+    if bcc_list:
+        message["bccRecipients"] = bcc_list
+
+    payload = {"message": message, "saveToSentItems": True}
+    r = _graph_post(token, "/me/sendMail", payload)
+    if getattr(r, "status_code", 0) in (200, 202):
+        messages.success(request, "E-Mail wurde gesendet.")
+        return redirect("crm_core:sent")
+
+    messages.error(request, f"Senden fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    prefill = {"to": to, "cc": cc, "bcc": bcc, "subject": subject, "body": body}
+    return render(request, "email/send.html", {"prefill": prefill})

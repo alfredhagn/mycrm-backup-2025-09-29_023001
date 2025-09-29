@@ -1,0 +1,198 @@
+# --- CALENDAR: toolbar + create/update ---
+from django.views.decorators.http import require_http_methods
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+import re as _re_cal
+
+def _tzname():
+    try:
+        import pytz  # noqa
+        return dj_tz.get_current_timezone_name() or "UTC"
+    except Exception:
+        return "UTC"
+
+def _parse_attendees(line: str):
+    if not line:
+        return []
+    parts = [p.strip() for p in _re_cal.split(r"[;,]+", line) if p.strip()]
+    return [{"emailAddress": {"address": p}, "type": "required"} for p in parts]
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": 90})
+
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees,body",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": ahead})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": ahead})
+
+    # Laufende/kommende
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    for ev in upcoming:
+        try:
+            ev["start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/calendar/list.html", {"events": upcoming, "ahead": ahead})
+
+@require_http_methods(["GET","POST"])
+def calendar_create(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        dt = dj_tz.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        ctx = {
+            "mode": "create",
+            "subject": "",
+            "start_date": dt.strftime("%Y-%m-%d"),
+            "start_time": dt.strftime("%H:%M"),
+            "end_date": (dt + timedelta(hours=1)).strftime("%Y-%m-%d"),
+            "end_time": (dt + timedelta(hours=1)).strftime("%H:%M"),
+            "location": "",
+            "attendees": "",
+            "body": "",
+        }
+        return render(request, "crm_core/calendar/form.html", ctx)
+
+    subject = (request.POST.get("subject") or "").strip()
+    start_date = (request.POST.get("start_date") or "").strip()
+    start_time = (request.POST.get("start_time") or "").strip()
+    end_date = (request.POST.get("end_date") or "").strip()
+    end_time = (request.POST.get("end_time") or "").strip()
+    location = (request.POST.get("location") or "").strip()
+    attendees = (request.POST.get("attendees") or "").strip()
+    body = (request.POST.get("body") or "").strip()
+
+    if not all([subject, start_date, start_time, end_date, end_time]):
+        messages.error(request, "Bitte Betreff, Start und Ende ausfüllen.")
+        return render(request, "crm_core/calendar/form.html", {"mode": "create", **request.POST.dict()})
+
+    start_dt = f"{start_date}T{start_time}:00"
+    end_dt   = f"{end_date}T{end_time}:00"
+    tz = _tzname()
+    payload = {
+        "subject": subject,
+        "body": {"contentType": "HTML", "content": body},
+        "start": {"dateTime": start_dt, "timeZone": tz},
+        "end": {"dateTime": end_dt, "timeZone": tz},
+    }
+    if location:
+        payload["location"] = {"displayName": location}
+    atts = _parse_attendees(attendees)
+    if atts:
+        payload["attendees"] = atts
+
+    r = _graph_post(token, "/me/events", payload)
+    if getattr(r, "status_code", 0) in (200, 201, 202):
+        messages.success(request, "Termin angelegt.")
+        return redirect("crm_core:calendar_list")
+
+    messages.error(request, f"Anlegen fehlgeschlagen (HTTP {getattr(r, 'status_code','?')}).")
+    return render(request, "crm_core/calendar/form.html", {"mode": "create", **request.POST.dict()})
+
+@require_http_methods(["GET","POST"])
+def calendar_update(request, id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        r = _graph_get(token, f"/me/events/{id}")
+        if getattr(r, "status_code", 0) != 200:
+            messages.error(request, f"Termin nicht gefunden (HTTP {getattr(r, 'status_code','?')}).")
+            return redirect("crm_core:calendar_list")
+        ev = r.json()
+        try:
+            from dateutil import parser
+            s = parser.isoparse((ev.get("start") or {}).get("dateTime") or "")
+            e = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+        except Exception:
+            s = dj_tz.now()
+            e = s + timedelta(hours=1)
+        ctx = {
+            "mode": "update",
+            "subject": ev.get("subject") or "",
+            "start_date": s.strftime("%Y-%m-%d"),
+            "start_time": s.strftime("%H:%M"),
+            "end_date": e.strftime("%Y-%m-%d"),
+            "end_time": e.strftime("%H:%M"),
+            "location": (ev.get("location") or {}).get("displayName", ""),
+            "attendees": ", ".join([(a.get("emailAddress") or {}).get("address","") for a in (ev.get("attendees") or []) if a]) or "",
+            "body": ((ev.get("body") or {}).get("content") or ""),
+        }
+        return render(request, "crm_core/calendar/form.html", ctx)
+
+    subject = (request.POST.get("subject") or "").strip()
+    start_date = (request.POST.get("start_date") or "").strip()
+    start_time = (request.POST.get("start_time") or "").strip()
+    end_date = (request.POST.get("end_date") or "").strip()
+    end_time = (request.POST.get("end_time") or "").strip()
+    location = (request.POST.get("location") or "").strip()
+    attendees = (request.POST.get("attendees") or "").strip()
+    body = (request.POST.get("body") or "").strip()
+
+    start_dt = f"{start_date}T{start_time}:00"
+    end_dt   = f"{end_date}T{end_time}:00"
+    tz = _tzname()
+    payload = {
+        "subject": subject or "(ohne Betreff)",
+        "body": {"contentType": "HTML", "content": body},
+        "start": {"dateTime": start_dt, "timeZone": tz},
+        "end": {"dateTime": end_dt, "timeZone": tz},
+        "location": {"displayName": location},
+        "attendees": _parse_attendees(attendees),
+    }
+
+    r = _graph_patch(token, f"/me/events/{id}", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Termin aktualisiert.")
+        return redirect("crm_core:calendar_detail", id=id)
+
+    messages.error(request, f"Aktualisieren fehlgeschlagen (HTTP {getattr(r, 'status_code','?')}).")
+    return render(request, "crm_core/calendar/form.html", {"mode": "update", **request.POST.dict()})

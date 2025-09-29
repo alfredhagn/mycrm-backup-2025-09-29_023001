@@ -1,0 +1,11 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Firma – {{ company.name }}{% endblock %}
+{% block content %}
+<h1>{{ company.name }}</h1>
+<p class="muted">{{ company.website|default:"" }}</p>
+<p>
+  <a class="btn" href="{% url 'crm_core:company_update' company.pk %}">✏️ Bearbeiten</a>
+  <a class="btn" href="{% url 'crm_core:company_delete' company.pk %}">🗑️ Löschen</a>
+</p>
+{% endblock %}

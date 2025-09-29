@@ -1,0 +1,58 @@
+{% extends 'crm_core/base.html' %}
+{% load datetime_extras %}
+{% block title %}Kalender{% endblock %}
+{% block content %}
+<h2 class="mb-4">Kalender</h2>
+
+{% url 'crm_core:calendar_list' as cal_list_url %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="btn-group" role="group" aria-label="Zeitraum">
+    <a class="btn btn-outline-secondary {% if ahead|default:90 == 7 %}active{% endif %}"
+       href="{{ cal_list_url|default:'/crm/calendar/list/' }}?ahead=7">7 Tage</a>
+    <a class="btn btn-outline-secondary {% if ahead|default:90 == 30 %}active{% endif %}"
+       href="{{ cal_list_url|default:'/crm/calendar/list/' }}?ahead=30">30 Tage</a>
+    <a class="btn btn-outline-secondary {% if ahead|default:90 == 90 %}active{% endif %}"
+       href="{{ cal_list_url|default:'/crm/calendar/list/' }}?ahead=90">90 Tage</a>
+  </div>
+  {% url 'crm_core:calendar_create' as cal_create_url %}
+  <a class="btn btn-primary" href="{{ cal_create_url|default:cal_list_url|default:'/crm/calendar/list/' }}">Neuer Termin</a>
+</div>
+
+{% if events and events|length > 0 %}
+<table class="table table-striped w-full">
+  <thead>
+    <tr>
+      <th>Start</th>
+      <th>Ende</th>
+      <th>Betreff</th>
+      <th>Ort</th>
+      <th>Teilnehmer</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.start_local|default_if_none:"" }}</td>
+      <td>{{ e.end_local|default_if_none:"" }}</td>
+      <td>
+        {% url 'crm_core:calendar_detail' e.id as cal_detail_url %}
+        <a href="{% if cal_detail_url %}{{ cal_detail_url }}{% else %}/crm/calendar/{{ e.id|urlencode }}/{% endif %}">
+          {{ e.subject|default:"(ohne Betreff)" }}
+        </a>
+      </td>
+      <td>{{ e.location.displayName|default:"" }}</td>
+      <td>
+        {% if e.attendees %}
+          {% for a in e.attendees %}
+            {{ a.emailAddress.address }}{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Keine aktuellen Termine gefunden.</p>
+{% endif %}
+{% endblock %}

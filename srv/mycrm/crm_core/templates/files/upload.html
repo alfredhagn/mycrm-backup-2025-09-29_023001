@@ -1,0 +1,12 @@
+<h1>Datei hochladen</h1>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <p>
+    <label for="file">Datei auswählen:</label><br>
+    <input type="file" name="file" id="file" required>
+  </p>
+  <button type="submit">📤 Hochladen</button>
+</form>
+
+<p><a href="{% url 'crm_core:files_list' %}">Zurück zur Dateiliste</a></p>

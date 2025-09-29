@@ -1,0 +1,49 @@
+{% extends 'crm_core/base.html' %}
+{% load datetime_extras %}
+{% block title %}Termin {% if mode == 'update' %}bearbeiten{% else %}anlegen{% endif %}{% endblock %}
+{% block content %}
+<h2 class="mb-4">Termin {% if mode == 'update' %}bearbeiten{% else %}anlegen{% endif %}</h2>
+
+<form method="post" class="card p-3">
+  {% csrf_token %}
+  <div class="mb-3">
+    <label class="form-label">Betreff</label>
+    <input type="text" name="subject" value="{{ subject|default:'' }}" class="form-control" required>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Start (Datum)</label>
+      <input type="date" name="start_date" value="{{ start_date|default:'' }}" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Start (Zeit)</label>
+      <input type="time" name="start_time" value="{{ start_time|default:'' }}" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Ende (Datum)</label>
+      <input type="date" name="end_date" value="{{ end_date|default:'' }}" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Ende (Zeit)</label>
+      <input type="time" name="end_time" value="{{ end_time|default:'' }}" class="form-control" required>
+    </div>
+  </div>
+  <div class="mb-3 mt-3">
+    <label class="form-label">Ort</label>
+    <input type="text" name="location" value="{{ location|default:'' }}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Teilnehmer (E-Mails; mit , oder ; trennen)</label>
+    <input type="text" name="attendees" value="{{ attendees|default:'' }}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Beschreibung</label>
+    <textarea name="body" rows="8" class="form-control">{{ body|default:'' }}</textarea>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-success" type="submit">Speichern</button>
+    <a class="btn btn-secondary" href="/crm/calendar/">Abbrechen</a>
+  </div>
+</form>
+{% endblock %}

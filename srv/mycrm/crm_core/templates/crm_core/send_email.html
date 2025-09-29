@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load datetime_extras %}
+
+{% block content %}
+  <h2>E-Mail senden</h2>
+
+  {% if error %}
+    <div style="color: red; font-weight: bold;">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <table>
+      {{ form.as_table }}
+    </table>
+    <button type="submit">Senden</button>
+  </form>
+
+  <p><a href="{% url 'crm_core:email_log_list' %}">Zurück zur E-Mail-Übersicht</a></p>
+{% endblock %}

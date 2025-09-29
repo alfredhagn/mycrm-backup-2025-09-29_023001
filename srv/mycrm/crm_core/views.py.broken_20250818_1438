@@ -1,0 +1,1912 @@
+# /root/mycrm/crm_core/views.py
+from __future__ import annotations
+
+import base64
+import json
+import logging
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+from typing import Any, Dict, Optional
+
+import requests
+from django.conf import settings
+from django.contrib import messages
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.db import transaction
+from django.db.models import Q
+from django.http import (
+    FileResponse,
+    Http404,
+    HttpResponse,
+    HttpResponseBadRequest,
+)
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone as dj_tz
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
+
+from .models import Company, Contact, FileAsset  # EmailLog optional via _import_emaillog_model()
+from .forms import CompanyForm, ContactForm
+from django.template.loader import select_template
+
+LOGGER = logging.getLogger(__name__)
+
+def render_first(request, candidates, context):
+    tpl = select_template(candidates)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+
+# ---------------------------------------------------------------------
+# Microsoft Graph Basics
+# ---------------------------------------------------------------------
+GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+
+def _graph_headers(token: str) -> Dict[str, str]:
+    return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+
+def _graph_url(path: str) -> str:
+    return f"{GRAPH_BASE}{path if path.startswith('/') else '/' + path}"
+
+
+def _graph_get(token: str, path: str, params: Optional[Dict[str, Any]] = None) -> requests.Response:
+    return requests.get(_graph_url(path), headers=_graph_headers(token), params=params, timeout=30)
+
+
+def _graph_post(token: str, path: str, payload: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> requests.Response:
+    headers = {**_graph_headers(token), "Content-Type": "application/json"}
+    return requests.post(_graph_url(path), headers=headers, data=json.dumps(payload), params=params, timeout=30)
+
+
+def _graph_patch(token: str, path: str, payload: Dict[str, Any]) -> requests.Response:
+    headers = {**_graph_headers(token), "Content-Type": "application/json"}
+    return requests.patch(_graph_url(path), headers=headers, data=json.dumps(payload), timeout=30)
+
+
+def _graph_delete(token: str, path: str) -> requests.Response:
+    return requests.delete(_graph_url(path), headers=_graph_headers(token), timeout=30)
+
+
+# ---------------------------------------------------------------------
+# TZ- und Datums-Helfer
+# ---------------------------------------------------------------------
+def _ensure_aware(dt):
+    return dj_tz.make_aware(dt, dj_tz.get_current_timezone()) if dj_tz.is_naive(dt) else dt
+
+
+def _utc_iso(dt=None) -> str:
+    if dt is None:
+        dt = dj_tz.now()
+    return _ensure_aware(dt).astimezone(dt_timezone.utc).isoformat()
+
+
+def _dt_to_str(graph_dt: Dict[str, str]) -> str:
+    """
+    MS Graph {"dateTime": "...", "timeZone": "..."} -> lokale, hübsche Zeit.
+    """
+    try:
+        from dateutil import parser
+        dt = parser.isoparse(graph_dt.get("dateTime"))
+        return dt.astimezone(timezone.get_current_timezone()).strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return graph_dt.get("dateTime") or ""
+
+
+# ---------------------------------------------------------------------
+# Optionale Modelle/Formulare
+# ---------------------------------------------------------------------
+def _import_emaillog_model():
+    try:
+        from .models import EmailLog  # type: ignore
+        return EmailLog
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------
+# Auth-Helper (MS-Token besorgen)
+# ---------------------------------------------------------------------
+def _require_token(request):
+    # 1) Session-Token (falls gesetzt)
+    tok = request.session.get("graph_token")
+    if tok:
+        return tok
+    # 2) allauth SocialToken
+    try:
+        from allauth.socialaccount.models import SocialToken
+        if request.user.is_authenticated:
+            t = (SocialToken.objects
+                 .filter(account__user=request.user, account__provider="microsoft")
+                 .order_by("-id")
+                 .first())
+            if t and t.token:
+                return t.token
+    except Exception:
+        pass
+    return None
+
+
+# ---------------------------------------------------------------------
+# Dashboard & Auth
+# ---------------------------------------------------------------------
+def dashboard(request):
+    """
+    Einfaches CRM-Dashboard / Startseite
+    """
+    return render(request, "crm_core/dashboard.html", {})
+
+
+
+@require_GET
+def microsoft_auth_init(request):
+    return redirect("/accounts/microsoft/login/")
+
+
+@require_GET
+def microsoft_auth_callback(request):
+    messages.success(request, "Microsoft Login Callback erreicht (Platzhalter).")
+    return redirect("crm_core:dashboard")
+
+
+# ---------------------------------------------------------------------
+# Firmen (Company) – CRUD
+# ---------------------------------------------------------------------
+@require_GET
+def company_list(request):
+    companies = Company.objects.all().order_by("name")
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def company_detail(request, pk: int):
+    company = get_object_or_404(Company, pk=pk)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_http_methods(["GET", "POST"])
+def company_create(request):
+    if request.method == "GET":
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    form = CompanyForm(request.POST)
+    if form.is_valid():
+        company = form.save()
+        messages.success(request, "Firma angelegt.")
+        return redirect("crm_core:company_detail", pk=company.pk)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_http_methods(["GET", "POST"])
+def company_update(request, pk: int):
+    company = get_object_or_404(Company, pk=pk)
+    if request.method == "GET":
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    form = CompanyForm(request.POST, instance=company)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Firma aktualisiert.")
+        return redirect("crm_core:company_detail", pk=pk)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_http_methods(["GET", "POST"])
+def company_delete(request, pk: int):
+    company = get_object_or_404(Company, pk=pk)
+    if request.method == "GET":
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    company.delete()
+    messages.success(request, "Firma gelöscht.")
+    return redirect("crm_core:company_list")
+
+
+# ---------------------------------------------------------------------
+# Kontakte (Contact) – CRUD (feldsicher)
+# ---------------------------------------------------------------------
+@require_GET
+def contact_list(request):
+    qs = Contact.objects.all()
+
+    # Feldnamen ermitteln
+    field_names = {f.name for f in Contact._meta.get_fields() if getattr(f, "attname", None)}
+
+    # Suche
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        cond = Q()
+        for fn in ("name", "first_name", "last_name", "email", "phone", "mobile"):
+            if fn in field_names:
+                cond |= Q(**{f"{fn}__icontains": q})
+        if cond:
+            qs = qs.filter(cond)
+
+    # company nur, wenn Relation existiert
+    if any(getattr(f, "is_relation", False) and f.name == "company" for f in Contact._meta.get_fields()):
+        qs = qs.select_related("company")
+
+    # robust sortieren
+    for cand in ("last_name", "first_name", "name", "created_at", "id"):
+        try:
+            qs = qs.order_by(cand)
+            break
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def contact_detail(request, pk: int):
+    qs = Contact.objects.all()
+    if any(getattr(f, "is_relation", False) and f.name == "company" for f in Contact._meta.get_fields()):
+        qs = qs.select_related("company")
+    contact = get_object_or_404(qs, pk=pk)
+    
+    return render(request, "crm_core/email_list.html", {"messages": items})
+    request,
+    ["crm_core/contacts/detail.html", "crm_core/contact_detail.html"],
+    {"contact": contact},
+    form = ContactForm(request.POST)
+    if form.is_valid():
+        contact = form.save()
+        messages.success(request, "Kontakt angelegt.")
+        return redirect("crm_core:contact_detail", pk=contact.pk)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_http_methods(["GET", "POST"])
+def contact_update(request, pk: int):
+    contact = get_object_or_404(Contact, pk=pk)
+    if request.method == "GET":
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    form = ContactForm(request.POST, instance=contact)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Kontakt aktualisiert.")
+        return redirect("crm_core:contact_detail", pk=pk)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_http_methods(["GET", "POST"])
+def contact_delete(request, pk: int):
+    contact = get_object_or_404(Contact, pk=pk)
+    if request.method == "GET":
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    contact.delete()
+    messages.success(request, "Kontakt gelöscht.")
+    return redirect("crm_core:contact_list")
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
+# E-Mail – Übersicht, Inbox, Gesendet, Detail, Attachments, Refresh
+
+# ---------------------------------------------------------------------
+
+@require_GET
+def email_home(request):
+    return render(request, "crm_core/email_home.html")
+    """Default entry point for the E-Mail module. Redirect to the inbox."""
+    return render(request, "crm_core/email_home.html")
+
+@require_GET
+def email_refresh(request):
+    messages.info(request, "Posteingang aktualisiert.")
+    return render(request, "crm_core/email_home.html")
+
+    query = request.GET.get("q", "").strip()
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    if query:
+        sanitized = query.replace("'", "")
+        params["$filter"] = f"contains(subject,'{sanitized}')"
+
+    r = _graph_get(token, "/me/mailFolders/Inbox/messages", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Mailbox-Fehler ({r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", [])
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def sent_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    r = _graph_get(
+        token,
+        "/me/mailFolders/SentItems/messages",
+        params={
+            "$select": "id,subject,from,receivedDateTime,hasAttachments",
+            "$orderby": "receivedDateTime DESC",
+            "$top": "50",
+        },
+    )
+    if r.status_code != 200:
+        messages.error(request, f"Mailbox-Fehler ({r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", [])
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def email_detail(request, message_id: str):
+    """
+    Zeigt eine einzelne E-Mail (MS Graph) inkl. Button 'Als Kontakt anlegen'
+    """
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+
+    r = _graph_get(token, f"/me/messages/{message_id}")
+    if r.status_code != 200:
+        messages.error(request, f"E-Mail nicht gefunden ({r.status_code}).")
+        return render(request, "crm_core/email_home.html")
+
+    msg = r.json()
+
+    # Kontakt zur Absenderadresse ermitteln (falls schon vorhanden)
+    from crm_core.models import Contact
+    from_addr = msg["from"]["emailAddress"]["address"]
+    contact_exists = Contact.objects.filter(email=from_addr).first()
+
+    at = _graph_get(token, f"/me/messages/{message_id}/attachments")
+    attachments = at.json().get("value", []) if at.status_code == 200 else []
+
+    return render(
+        request,
+        "crm_core/email_detail.html",
+        {
+            "message": msg,
+            "attachments": attachments,
+            "contact_exists": contact_exists,
+            "message_id": message_id,
+        },
+    )
+
+
+
+@require_GET
+def email_attachment_download(request, message_id: str, attachment_id: str):
+    token = _require_token(request)
+    if not token:
+        raise Http404("Nicht angemeldet")
+
+    r = _graph_get(token, f"/me/messages/{message_id}/attachments/{attachment_id}")
+    if r.status_code != 200:
+        raise Http404("Anhang nicht gefunden")
+    data = r.json()
+    name = data.get("name") or "attachment.bin"
+    content_bytes = data.get("contentBytes")
+    if not content_bytes:
+        rv = requests.get(_graph_url(f"/me/messages/{message_id}/attachments/{attachment_id}/$value"),
+                          headers=_graph_headers(token), timeout=30)
+        if rv.status_code != 200:
+            raise Http404("Anhang ohne Inhalt")
+        resp = HttpResponse(rv.content, content_type="application/octet-stream")
+        resp["Content-Disposition"] = f'attachment; filename="{name}"'
+        return resp
+    try:
+        raw = base64.b64decode(content_bytes)
+    except Exception:
+        raw = b""
+    resp = HttpResponse(raw, content_type="application/octet-stream")
+    resp["Content-Disposition"] = f'attachment; filename="{name}"'
+    return resp
+
+
+# ---------------------------------------------------------------------
+# Dateien – Liste/Upload/Download/Löschen
+# ---------------------------------------------------------------------
+@require_GET
+def files_list(request):
+    files = FileAsset.objects.all().order_by("-created_at")
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_http_methods(["POST"])
+def files_upload(request):
+    f = request.FILES.get("file")
+    if not f:
+        messages.error(request, "Keine Datei gewählt.")
+        return redirect("crm_core:files_list")
+
+    with transaction.atomic():
+        path = default_storage.save(f"uploads/{dj_tz.now():%Y/%m/%d}/{f.name}", f)
+        size = getattr(f, "size", 0) or 0
+        FileAsset.objects.create(
+            file=path,
+            original_name=getattr(f, "name", ""),
+            size=size,
+        )
+    messages.success(request, "Datei hochgeladen.")
+    return redirect("crm_core:files_list")
+
+
+@require_GET
+def files_download(request, pk: int):
+    asset = get_object_or_404(FileAsset, pk=pk)
+    f = default_storage.open(asset.file.name, "rb")
+    return FileResponse(f, as_attachment=True, filename=asset.display_name)
+
+
+@require_GET
+def files_delete(request, pk: int):
+    asset = get_object_or_404(FileAsset, pk=pk)
+    try:
+        default_storage.delete(asset.file.name)
+    except Exception:
+        pass
+    asset.delete()
+    messages.success(request, "Datei gelöscht.")
+    return redirect("crm_core:files_list")
+
+
+# ---------------------------------------------------------------------
+# Kalender – einfache Liste (UTC-Fix)
+# ---------------------------------------------------------------------
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    params = {"$top": "50", "$orderby": "start/dateTime ASC"}
+    r = _graph_get(token, "/me/events", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Kalender-Fehler ({r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", [])
+    for ev in items:
+        try:
+            ev["_start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["_end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+# ---------------------------------------------------------------------
+# VOIP – Fritz!Box Calllist & Sipgate Click-to-Call
+# ---------------------------------------------------------------------
+@require_GET
+def fritzbox_call_list(request):
+    entries = []
+    error = None
+    try:
+        from crm_core.services.fritzbox import get_call_list
+        entries = get_call_list()
+    except Exception as e:
+        error = str(e)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_POST
+def call_number_via_sipgate(request):
+    number = (request.POST.get("number") or "").strip()
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/crm/"
+    if not number:
+        messages.error(request, "Keine Rufnummer übergeben.")
+        return redirect(next_url)
+
+    try:
+        from crm_core.services.sipgate import click_to_call
+        click_to_call(number)  # ENV steuert deviceId/callerId
+        messages.success(request, f"Rufe {number} an … (dein Gerät klingelt zuerst)")
+    except Exception as e:
+        messages.error(request, f"Anruf fehlgeschlagen: {e}")
+    return redirect(next_url)
+
+# --- FEHLENDE/ALIAS-EMAIL-VIEWS ------------------------------------
+import re  # oben ggf. schon vorhanden
+
+@require_GET
+def email_inbox(request):
+    # Alias-Name für alte Templates
+    return inbox_view(request)
+
+@require_http_methods(["GET", "POST"])
+def email_compose(request):
+    """
+    Einfache Compose-View: rendert ein leichtgewichtiges Formular-Template
+    (crm_core/templates/email/send.html) und sendet über MS Graph.
+    """
+    if request.method == "GET":
+        prefill = {k: (request.GET.get(k) or "") for k in ("to", "cc", "bcc", "subject", "body")}
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # POST => Senden
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    to = (request.POST.get("to") or "").strip()
+    cc = (request.POST.get("cc") or "").strip()
+    bcc = (request.POST.get("bcc") or "").strip()
+    subject = (request.POST.get("subject") or "").strip()
+    body = (request.POST.get("body") or "").strip()
+
+    def _parse(addr_line: str):
+        if not addr_line:
+            return []
+        parts = [p.strip() for p in re.split(r"[;,]+", addr_line) if p.strip()]
+        return [{"emailAddress": {"address": p}} for p in parts]
+
+    message = {
+        "subject": subject or "(ohne Betreff)",
+        "body": {"contentType": "Text", "content": body or ""},
+        "toRecipients": _parse(to),
+    }
+    cc_list = _parse(cc)
+    bcc_list = _parse(bcc)
+    if cc_list:
+        message["ccRecipients"] = cc_list
+    if bcc_list:
+        message["bccRecipients"] = bcc_list
+
+    payload = {"message": message, "saveToSentItems": True}
+    r = _graph_post(token, "/me/sendMail", payload)
+    if r.status_code in (200, 202):
+        messages.success(request, "E-Mail wurde gesendet.")
+        return redirect("crm_core:sent")
+
+    # Fehlerfall → Formular nochmal anzeigen
+    messages.error(request, f"Senden fehlgeschlagen (HTTP {r.status_code}).")
+    prefill = {"to": to, "cc": cc, "bcc": bcc, "subject": subject, "body": body}
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_http_methods(["POST"])
+def email_send(request):
+    # Falls Templates direkt auf /email/send/ posten
+    return email_compose(request)
+
+@require_GET
+def email_attachments(request, message_id: str):
+    # Die Detailseite zeigt Anhänge ohnehin mit an
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_GET
+def email_log_list(request):
+    EmailLog = _import_emaillog_model()
+    logs = []
+    if EmailLog:
+        try:
+            logs = list(EmailLog.objects.all().order_by("-timestamp")[:200])
+        except Exception:
+            logs = []
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+# --- FEHLENDE/ALIAS-KALENDER-VIEWS ---------------------------------
+@require_GET
+def calendar_create(request):
+    # Minimal: Formular anzeigen (Implementierung kann später folgen)
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_GET
+def calendar_detail(request, id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    r = _graph_get(token, f"/me/events/{id}")
+    if r.status_code != 200:
+        messages.error(request, f"Termin nicht gefunden (HTTP {r.status_code}).")
+        return redirect("crm_core:calendar_list")
+
+    ev = r.json()
+    # Template erwartet flache Felder
+    ctx = {
+        "id": ev.get("id"),
+        "subject": ev.get("subject"),
+        "start": _dt_to_str((ev.get("start") or {})),
+        "end": _dt_to_str((ev.get("end") or {})),
+        "location": (ev.get("location") or {}).get("displayName", ""),
+        "attendees": ", ".join([(a.get("emailAddress", {}) or {}).get("address", "")
+                                for a in (ev.get("attendees") or []) if a]) or "",
+        "body": ((ev.get("body") or {}).get("content") or ""),
+    }
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_http_methods(["GET", "POST"])
+def calendar_update(request, id: str):
+    # Stub: vorerst nur Formular anzeigen; Patch kann später ergänzt werden
+    if request.method == "GET":
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    messages.info(request, "Update noch nicht implementiert.")
+    return redirect("crm_core:calendar_detail", id=id)
+
+@require_POST
+def calendar_delete(request, id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+    r = _graph_delete(token, f"/me/events/{id}")
+    if r.status_code in (200, 204):
+        messages.success(request, "Termin gelöscht.")
+    else:
+        messages.error(request, f"Löschen fehlgeschlagen (HTTP {r.status_code}).")
+    return redirect("crm_core:calendar_list")
+
+# --- REPLACE inbox_view and sent_view in crm_core/views.py with this block ---
+from django.views.decorators.http import require_GET
+
+@require_GET
+def inbox_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    query = request.GET.get("q", "").strip()
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    if query:
+        sanitized = query.replace("'", "")
+        params["$filter"] = f"contains(subject,'{sanitized}')"
+
+    r = _graph_get(token, "/me/mailFolders/Inbox/messages", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Mailbox-Fehler ({r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", [])
+    for m in items:
+        m["_from"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["_received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["_received_local"] = m.get("receivedDateTime") or ""
+        m["_has_attachments"] = bool(m.get("hasAttachments"))
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_GET
+def sent_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    r = _graph_get(token, "/me/mailFolders/SentItems/messages", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Mailbox-Fehler ({r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", [])
+    for m in items:
+        m["_from"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["_received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["_received_local"] = m.get("receivedDateTime") or ""
+        m["_has_attachments"] = bool(m.get("hasAttachments"))
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+# --- REPLACE calendar_list in crm_core/views.py with this block ---
+from datetime import timedelta
+from django.views.decorators.http import require_GET
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Fenster: 7 Tage zurück bis +90 Tage nach vorne
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=90)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "100",
+    }
+    r = _graph_get(token, "/me/calendarView", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Kalender-Fehler ({r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", [])
+
+    # Nur laufende/kommende anzeigen
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    # Lokale Strings
+    for ev in upcoming:
+        try:
+            ev["_start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["_end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+# === SAFE OVERRIDES FOR MAIL & CALENDAR (EXCEPTIONS -> MESSAGE + EMPTY LIST) ===
+
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+import requests
+
+@require_GET
+def inbox_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    query = (request.GET.get("q") or "").strip()
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    if query:
+        sanitized = query.replace("'", "")
+        params["$filter"] = f"contains(subject,'{sanitized}')"
+
+    try:
+        r = _graph_get(token, "/me/mailFolders/Inbox/messages", params=params)
+    except Exception as e:
+        messages.error(request, f"Mailbox-Fehler (Netzwerk): {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    if getattr(r, "status_code", 0) != 200:
+        messages.error(request, f"Mailbox-Fehler (HTTP {r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", []) if callable(getattr(r, "json", None)) else []
+    for m in items:
+        m["_from"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["_received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["_received_local"] = m.get("receivedDateTime") or ""
+        m["_has_attachments"] = bool(m.get("hasAttachments"))
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def sent_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+
+    try:
+        r = _graph_get(token, "/me/mailFolders/SentItems/messages", params=params)
+    except Exception as e:
+        messages.error(request, f"Gesendet-Fehler (Netzwerk): {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    if getattr(r, "status_code", 0) != 200:
+        messages.error(request, f"Gesendet-Fehler (HTTP {r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", []) if callable(getattr(r, "json", None)) else []
+    for m in items:
+        m["_from"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["_received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["_received_local"] = m.get("receivedDateTime") or ""
+        m["_has_attachments"] = bool(m.get("hasAttachments"))
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Fenster: 7 Tage zurück bis +90 Tage vor
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=90)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "100",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler (Netzwerk): {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    if getattr(r, "status_code", 0) != 200:
+        messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    items = r.json().get("value", []) if callable(getattr(r, "json", None)) else []
+
+    # Nur laufende/kommende Termine behalten
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    for ev in upcoming:
+        try:
+            ev["_start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["_end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+# === SAFE OVERRIDES (no 500: network/Graph/URL-Probleme -> leere Listen + Message) ===
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def inbox_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    query = (request.GET.get("q") or "").strip()
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    if query:
+        sanitized = query.replace("'", "")
+        params["$filter"] = f"contains(subject,'{sanitized}')"
+
+    try:
+        r = _graph_get(token, "/me/mailFolders/Inbox/messages", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Mailbox-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Mailbox-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Für Template einfache, „ungefährliche“ Keys ohne führenden Unterstrich
+    for m in items:
+        m["from_addr"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["received_local"] = m.get("receivedDateTime") or ""
+        m["has_attachments"] = bool(m.get("hasAttachments"))
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def sent_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+
+    try:
+        r = _graph_get(token, "/me/mailFolders/SentItems/messages", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Gesendet-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Gesendet-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    for m in items:
+        m["from_addr"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["received_local"] = m.get("receivedDateTime") or ""
+        m["has_attachments"] = bool(m.get("hasAttachments"))
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=90)).astimezone(dt_timezone.utc).isoformat()
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "100",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Nur laufende/kommende
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    for ev in upcoming:
+        try:
+            ev["start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+# --- EMAIL COMPOSE with HTML signature (append at end of crm_core/views.py) ---
+from django.views.decorators.http import require_http_methods
+import re as _re_sig
+
+_SIGNATURE_HTML = (
+    '<div style="font-family: Arial, sans-serif; font-size: 11pt; color:#000;">'
+    '<div><strong>Alfred Hagn</strong></div>'
+    '<div>Unternehmensberatung / Interim-Management</div>'
+    '<div>Rudolf-Waisenhorngasse 138/4</div>'
+    '<div>A-1230 Wien</div>'
+    '<div>UID ATU77717712</div>'
+    '<div>Festnetz: +49 841 45 44 240</div>'
+    '<div>Mobil: +43 681 8175 26 46</div>'
+    '<div>alfred.hagn@hagninterim.de</div>'
+    '</div>'
+)
+
+@require_http_methods(["GET","POST"])
+def email_compose(request):
+    """
+    Zeigt Compose-Formular und sendet über MS Graph.
+    - Bei aktiver „use_signature“ Checkbox wird HTML verschickt und die Signatur angehängt.
+    - Ohne Signatur wird im Textmodus gesendet.
+    """
+    if request.method == "GET":
+        prefill = {k: (request.GET.get(k) or "") for k in ("to","cc","bcc","subject","body")}
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:email_home")
+
+    to  = (request.POST.get("to") or "").strip()
+    cc  = (request.POST.get("cc") or "").strip()
+    bcc = (request.POST.get("bcc") or "").strip()
+    subject = (request.POST.get("subject") or "").strip()
+    body    = (request.POST.get("body") or "").strip()
+    use_sig = (request.POST.get("use_signature") == "on")
+
+    def _parse(addr_line: str):
+        if not addr_line:
+            return []
+        parts = [p.strip() for p in _re_sig.split(r"[;,]+", addr_line) if p.strip()]
+        return [{"emailAddress": {"address": p}} for p in parts]
+
+    if use_sig:
+        body_html = (body or "").replace("\n", "<br>")
+        if body_html:
+            body_html += "<br><br>"
+        body_html += _SIGNATURE_HTML
+        body_payload = {"contentType": "HTML", "content": body_html}
+    else:
+        body_payload = {"contentType": "Text", "content": body or ""}
+
+    message = {
+        "subject": subject or "(ohne Betreff)",
+        "body": body_payload,
+        "toRecipients": _parse(to),
+    }
+    cc_list = _parse(cc)
+    bcc_list = _parse(bcc)
+    if cc_list:
+        message["ccRecipients"] = cc_list
+    if bcc_list:
+        message["bccRecipients"] = bcc_list
+
+    payload = {"message": message, "saveToSentItems": True}
+    r = _graph_post(token, "/me/sendMail", payload)
+    if getattr(r, "status_code", 0) in (200, 202):
+        messages.success(request, "E-Mail wurde gesendet.")
+        return redirect("crm_core:sent")
+
+    messages.error(request, f"Senden fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    prefill = {"to": to, "cc": cc, "bcc": bcc, "subject": subject, "body": body}
+    return render(request, "crm_core/email_list.html", {"messages": items})
+from django.views.decorators.http import require_http_methods
+import re as _re_mail
+
+def _parse_recipients(line: str):
+    if not line:
+        return []
+    parts = [p.strip() for p in _re_mail.split(r"[;,]+", line) if p.strip()]
+    return [{"emailAddress": {"address": p}} for p in parts]
+
+@require_http_methods(["POST"])
+def email_reply(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+    r = _graph_post(token, f"/me/messages/{message_id}/reply", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Antwort gesendet.")
+    else:
+        messages.error(request, f"Antwort fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_http_methods(["POST"])
+def email_reply_all(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+    r = _graph_post(token, f"/me/messages/{message_id}/replyAll", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Allen geantwortet.")
+    else:
+        messages.error(request, f"Antwort an alle fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_http_methods(["POST"])
+def email_forward(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+    tos = request.POST.get("to", "").strip()
+    if not tos:
+        messages.error(request, "Bitte Empfänger angeben (To).")
+        return redirect("crm_core:email_detail", message_id=message_id)
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment, "toRecipients": _parse_recipients(tos)}
+    r = _graph_post(token, f"/me/messages/{message_id}/forward", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Weitergeleitet.")
+    else:
+        messages.error(request, f"Weiterleitung fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)# --- CALENDAR FILTER: ahead query param (days) ---
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Nur laufende/kommende
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    for ev in upcoming:
+        try:
+            ev["start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+from django.views.decorators.http import require_http_methods
+import re as _re_mail
+
+def _parse_recipients(line: str):
+    if not line:
+        return []
+    parts = [p.strip() for p in _re_mail.split(r"[;,]+", line) if p.strip()]
+    return [{"emailAddress": {"address": p}} for p in parts]
+
+@require_http_methods(["POST"])
+def email_reply(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+    r = _graph_post(token, f"/me/messages/{message_id}/reply", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Antwort gesendet.")
+    else:
+        messages.error(request, f"Antwort fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_http_methods(["POST"])
+def email_reply_all(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment}
+    r = _graph_post(token, f"/me/messages/{message_id}/replyAll", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Allen geantwortet.")
+    else:
+        messages.error(request, f"Antwort an alle fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)
+
+@require_http_methods(["POST"])
+def email_forward(request, message_id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_home.html")
+    tos = request.POST.get("to", "").strip()
+    if not tos:
+        messages.error(request, "Bitte Empfänger angeben (To).")
+        return redirect("crm_core:email_detail", message_id=message_id)
+    comment = request.POST.get("comment", "")
+    payload = {"comment": comment, "toRecipients": _parse_recipients(tos)}
+    r = _graph_post(token, f"/me/messages/{message_id}/forward", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Weitergeleitet.")
+    else:
+        messages.error(request, f"Weiterleitung fehlgeschlagen (HTTP {getattr(r, 'status_code', '?')}).")
+    return redirect("crm_core:email_detail", message_id=message_id)# --- CALENDAR FILTER: ahead query param (days) ---
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Nur laufende/kommende
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    for ev in upcoming:
+        try:
+            ev["start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+from django.views.decorators.http import require_http_methods
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+import re as _re_cal
+
+def _tzname():
+    try:
+        import pytz  # noqa
+        return dj_tz.get_current_timezone_name() or "UTC"
+    except Exception:
+        return "UTC"
+
+def _parse_attendees(line: str):
+    if not line:
+        return []
+    parts = [p.strip() for p in _re_cal.split(r"[;,]+", line) if p.strip()]
+    return [{"emailAddress": {"address": p}, "type": "required"} for p in parts]
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees,body",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Laufende/kommende
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    for ev in upcoming:
+        try:
+            ev["start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_http_methods(["GET","POST"])
+def calendar_create(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        dt = dj_tz.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        ctx = {
+            "mode": "create",
+            "subject": "",
+            "start_date": dt.strftime("%Y-%m-%d"),
+            "start_time": dt.strftime("%H:%M"),
+            "end_date": (dt + timedelta(hours=1)).strftime("%Y-%m-%d"),
+            "end_time": (dt + timedelta(hours=1)).strftime("%H:%M"),
+            "location": "",
+            "attendees": "",
+            "body": "",
+        }
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    subject = (request.POST.get("subject") or "").strip()
+    start_date = (request.POST.get("start_date") or "").strip()
+    start_time = (request.POST.get("start_time") or "").strip()
+    end_date = (request.POST.get("end_date") or "").strip()
+    end_time = (request.POST.get("end_time") or "").strip()
+    location = (request.POST.get("location") or "").strip()
+    attendees = (request.POST.get("attendees") or "").strip()
+    body = (request.POST.get("body") or "").strip()
+
+    if not all([subject, start_date, start_time, end_date, end_time]):
+        messages.error(request, "Bitte Betreff, Start und Ende ausfüllen.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    start_dt = f"{start_date}T{start_time}:00"
+    end_dt   = f"{end_date}T{end_time}:00"
+    tz = _tzname()
+    payload = {
+        "subject": subject,
+        "body": {"contentType": "HTML", "content": body},
+        "start": {"dateTime": start_dt, "timeZone": tz},
+        "end": {"dateTime": end_dt, "timeZone": tz},
+    }
+    if location:
+        payload["location"] = {"displayName": location}
+    atts = _parse_attendees(attendees)
+    if atts:
+        payload["attendees"] = atts
+
+    r = _graph_post(token, "/me/events", payload)
+    if getattr(r, "status_code", 0) in (200, 201, 202):
+        messages.success(request, "Termin angelegt.")
+        return redirect("crm_core:calendar_list")
+
+    messages.error(request, f"Anlegen fehlgeschlagen (HTTP {getattr(r, 'status_code','?')}).")
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+@require_http_methods(["GET","POST"])
+def calendar_update(request, id: str):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return redirect("crm_core:calendar_list")
+
+    if request.method == "GET":
+        r = _graph_get(token, f"/me/events/{id}")
+        if getattr(r, "status_code", 0) != 200:
+            messages.error(request, f"Termin nicht gefunden (HTTP {getattr(r, 'status_code','?')}).")
+            return redirect("crm_core:calendar_list")
+        ev = r.json()
+        try:
+            from dateutil import parser
+            s = parser.isoparse((ev.get("start") or {}).get("dateTime") or "")
+            e = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+        except Exception:
+            s = dj_tz.now()
+            e = s + timedelta(hours=1)
+        ctx = {
+            "mode": "update",
+            "subject": ev.get("subject") or "",
+            "start_date": s.strftime("%Y-%m-%d"),
+            "start_time": s.strftime("%H:%M"),
+            "end_date": e.strftime("%Y-%m-%d"),
+            "end_time": e.strftime("%H:%M"),
+            "location": (ev.get("location") or {}).get("displayName", ""),
+            "attendees": ", ".join([(a.get("emailAddress") or {}).get("address","") for a in (ev.get("attendees") or []) if a]) or "",
+            "body": ((ev.get("body") or {}).get("content") or ""),
+        }
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    subject = (request.POST.get("subject") or "").strip()
+    start_date = (request.POST.get("start_date") or "").strip()
+    start_time = (request.POST.get("start_time") or "").strip()
+    end_date = (request.POST.get("end_date") or "").strip()
+    end_time = (request.POST.get("end_time") or "").strip()
+    location = (request.POST.get("location") or "").strip()
+    attendees = (request.POST.get("attendees") or "").strip()
+    body = (request.POST.get("body") or "").strip()
+
+    start_dt = f"{start_date}T{start_time}:00"
+    end_dt   = f"{end_date}T{end_time}:00"
+    tz = _tzname()
+    payload = {
+        "subject": subject or "(ohne Betreff)",
+        "body": {"contentType": "HTML", "content": body},
+        "start": {"dateTime": start_dt, "timeZone": tz},
+        "end": {"dateTime": end_dt, "timeZone": tz},
+        "location": {"displayName": location},
+        "attendees": _parse_attendees(attendees),
+    }
+
+    r = _graph_patch(token, f"/me/events/{id}", payload)
+    if getattr(r, "status_code", 0) in (200, 202, 204):
+        messages.success(request, "Termin aktualisiert.")
+        return redirect("crm_core:calendar_detail", id=id)
+
+    messages.error(request, f"Aktualisieren fehlgeschlagen (HTTP {getattr(r, 'status_code','?')}).")
+    return render(request, "crm_core/email_list.html", {"messages": items})
+# --- SAFE OVERRIDE: calendar_list mit formatierten Zeiten + ahead im Kontext ---
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # nur laufende/kommende
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    # hübsche, lokale Strings
+    for ev in upcoming:
+        try:
+            ev["start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["end_local"]   = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            ev["start_local"] = (ev.get("start") or {}).get("dateTime", "")
+            ev["end_local"]   = (ev.get("end") or {}).get("dateTime", "")
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+# --- SAFE OVERRIDE: calendar_list -> DE-Format + nur Zukunft (ab gestern) ---
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # ahead-Parameter (Tage) absichern
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now_local = dj_tz.now()
+    # Fenster: ab gestern (–1 Tag) bis +ahead Tage
+    start_iso = _ensure_aware(now_local - timedelta(days=1)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now_local + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+        if r.status_code != 200:
+            messages.error(request, f"Kalender-Fehler (HTTP {r.status_code}).")
+            return render(request, "crm_core/email_list.html", {"messages": items})
+        items = r.json().get("value", [])
+    except Exception as e:
+        messages.error(request, f"Kalender-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # Helfer zum hübschen DE-Format
+    def _fmt(graph_dt):
+        try:
+            from dateutil import parser
+            dt = parser.isoparse((graph_dt or {}).get("dateTime") or "")
+            if dj_tz.is_naive(dt):
+                dt = dj_tz.make_aware(dt, dj_tz.utc)
+            return dt.astimezone(dj_tz.get_current_timezone()).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return (graph_dt or {}).get("dateTime", "")
+
+    # Nur Termine ab gestern behalten (Startzeit), und Strings setzen
+    future = []
+    try:
+        from dateutil import parser
+        threshold = now_local - timedelta(days=1)
+        for ev in items:
+            try:
+                s = parser.isoparse((ev.get("start") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(s): s = dj_tz.make_aware(s, dj_tz.utc)
+                s = s.astimezone(dj_tz.get_current_timezone())
+                if s < threshold:
+                    continue
+            except Exception:
+                pass
+            start_str = _fmt(ev.get("start"))
+            end_str   = _fmt(ev.get("end"))
+            # kompatible Keys setzen (neu + alt)
+            ev["start_local"]  = start_str
+            ev["_start_local"] = start_str
+            ev["end_local"]    = end_str
+            ev["_end_local"]   = end_str
+            future.append(ev)
+    except Exception:
+        # Fallback: ungefiltert, aber mit Strings
+        for ev in items:
+            start_str = _fmt(ev.get("start"))
+            end_str   = _fmt(ev.get("end"))
+            ev["start_local"]  = start_str
+            ev["_start_local"] = start_str
+            ev["end_local"]    = end_str
+            ev["_end_local"]   = end_str
+            future.append(ev)
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+# --- CALENDAR LIST HOTFIX: DE-Format + Zukunft-only + robust ---
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    # Token ermitteln
+    try:
+        token = _require_token(request)
+    except Exception as e:
+        messages.error(request, f"Auth-Fehler: {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    # ahead absichern
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    # Zeitfenster: ab gestern bis +ahead Tage
+    now_local = dj_tz.now()
+    start_iso = _ensure_aware(now_local - timedelta(days=1)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now_local + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+    except Exception as e:
+        messages.error(request, f"Kalender (Netzwerk): {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    if getattr(r, "status_code", 0) != 200:
+        messages.error(request, f"Kalender-Fehler (HTTP {getattr(r,'status_code','?')}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        items = r.json().get("value", [])
+    except Exception:
+        items = []
+
+    # Parser & Formatierer
+    def _fmt(graph_dt):
+        try:
+            from dateutil import parser
+            dt = parser.isoparse((graph_dt or {}).get("dateTime") or "")
+            if dj_tz.is_naive(dt):
+                dt = dj_tz.make_aware(dt, dj_tz.utc)
+            return dt.astimezone(dj_tz.get_current_timezone()).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return (graph_dt or {}).get("dateTime", "")
+
+    # Nur Termine deren START >= gestern (lokal)
+    future = []
+    try:
+        from dateutil import parser
+        threshold = now_local - timedelta(days=1)
+        for ev in items:
+            try:
+                s = parser.isoparse((ev.get("start") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(s):
+                    s = dj_tz.make_aware(s, dj_tz.utc)
+                s = s.astimezone(dj_tz.get_current_timezone())
+                if s < threshold:
+                    continue
+            except Exception:
+                # wenn Start nicht parsebar -> trotzdem anzeigen
+                pass
+            # Strings setzen (kompatibel mit alten Templates)
+            s_str = _fmt(ev.get("start"))
+            e_str = _fmt(ev.get("end"))
+            ev["start_local"]  = s_str
+            ev["_start_local"] = s_str
+            ev["end_local"]    = e_str
+            ev["_end_local"]   = e_str
+            future.append(ev)
+    except Exception:
+        for ev in items:
+            s_str = _fmt(ev.get("start"))
+            e_str = _fmt(ev.get("end"))
+            ev["start_local"]  = s_str
+            ev["_start_local"] = s_str
+            ev["end_local"]    = e_str
+            ev["_end_local"]   = e_str
+            future.append(ev)
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+# ===== FINAL OVERRIDE: calendar_list (DE-Format, Zukunft-only, robust) =====
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    now_local = dj_tz.now()
+    start_iso = _ensure_aware(now_local - timedelta(days=1)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now_local + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+    except Exception as e:
+        messages.error(request, f"Kalender (Netzwerk): {e}")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    if getattr(r, "status_code", 0) != 200:
+        messages.error(request, f"Kalender-Fehler (HTTP {getattr(r,'status_code','?')}).")
+        return render(request, "crm_core/email_list.html", {"messages": items})
+
+    try:
+        items = r.json().get("value", [])
+    except Exception:
+        items = []
+
+    # Formatter (ohne Sekunden, DE-Format). Fällt bei Parse-Problemen weich zurück.
+    def _fmt(graph_dt):
+        try:
+            from dateutil import parser
+            dt = parser.isoparse((graph_dt or {}).get("dateTime") or "")
+            if dj_tz.is_naive(dt):
+                dt = dj_tz.make_aware(dt, dj_tz.utc)
+            return dt.astimezone(dj_tz.get_current_timezone()).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            s = (graph_dt or {}).get("dateTime", "")
+            # Notfall: ISO zu "DD.MM.YYYY HH:MM" umbiegen
+            if len(s) >= 16 and "T" in s:
+                yyyy, mm, rest = s[0:4], s[5:7], s[8:]
+                dd = rest.split("T",1)[0]
+                hhmm = rest.split("T",1)[1][:5]
+                return f"{dd}.{mm}.{yyyy} {hhmm}"
+            return s
+
+    # Nur Start >= gestern + Strings setzen
+    future = []
+    try:
+        from dateutil import parser
+        threshold = now_local - timedelta(days=1)
+        for ev in items:
+            try:
+                s = parser.isoparse((ev.get("start") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(s): s = dj_tz.make_aware(s, dj_tz.utc)
+                s_local = s.astimezone(dj_tz.get_current_timezone())
+                if s_local < threshold:
+                    continue
+            except Exception:
+                pass
+            s_str = _fmt(ev.get("start"))
+            e_str = _fmt(ev.get("end"))
+            ev["start_local"]  = s_str
+            ev["_start_local"] = s_str
+            ev["end_local"]    = e_str
+            ev["_end_local"]   = e_str
+            future.append(ev)
+    except Exception:
+        for ev in items:
+            s_str = _fmt(ev.get("start"))
+            e_str = _fmt(ev.get("end"))
+            ev["start_local"]  = s_str
+            ev["_start_local"] = s_str
+            ev["end_local"]    = e_str
+            ev["_end_local"]   = e_str
+            future.append(ev)
+
+    return render(request, "crm_core/email_list.html", {"messages": items})
+
+
+def contact_create_from_email(request):
+    """
+    Erstellt einen Kontakt anhand einer E-Mail-Adresse (per GET aufgerufen)
+    """
+    from crm_core.models import Contact
+    email = request.GET.get("email")
+    message_id = request.GET.get("message_id")
+    name = email.split("@")[0] if email else ""
+    Contact.objects.create(email=email, name=name)
+    return redirect("crm_core:email_detail", message_id)
+
+
+
+@require_http_methods(["GET", "POST"])
+def contact_create(request):
+    """
+    Einfaches Formular zum Erstellen eines Kontakts
+    """
+    if request.method == "POST":
+        name  = request.POST.get("name")
+        email = request.POST.get("email")
+        Contact.objects.create(name=name, email=email)
+        return redirect("crm_core:contact_list")
+    return render(request, "crm_core/contact_create.html", {})

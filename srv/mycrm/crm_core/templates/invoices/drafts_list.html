@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Rechnungs-Entwürfe</h1>
+<table border="0" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Datum</th><th>Rechnungsteller</th><th>Nr.</th>
+      <th>Netto</th><th>MwSt</th><th>Brutto</th><th>Status</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for d in rows %}
+    <tr>
+      <td>{{ d.invoice_date|date:"Y-m-d" }}</td>
+      <td>{{ d.issuer }}</td>
+      <td>{{ d.invoice_number }}</td>
+      <td>{{ d.net_amount }}</td>
+      <td>{{ d.vat_amount }}</td>
+      <td>{{ d.gross_amount }}</td>
+      <td>{{ d.status }}</td>
+      <td><a href="{% url 'inv_draft_detail' d.pk %}">öffnen</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="8">Keine Entwürfe vorhanden.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

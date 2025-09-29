@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Kontakt – {{ contact.first_name }} {{ contact.last_name }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px}
+    h1{margin:0 0 10px}
+    .muted{color:#666}
+    .section{margin:20px 0}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top}
+    th{background:#f5f5f5;text-align:left}
+    a.button, button{display:inline-block;padding:8px 12px;border:1px solid #ccc;border-radius:6px;background:#fafafa;text-decoration:none;color:#000}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width: 800px){ .grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+
+  {% if messages %}
+    <ul>
+      {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  <a href="{% url 'crm_core:contact_list' %}" class="button">← Zurück zur Kontaktliste</a>
+
+  <h1>{{ contact.first_name }} {{ contact.last_name }}</h1>
+  {% if contact.company %}
+    <p class="muted">Firma:
+      <a href="{% url 'crm_core:company_detail' contact.company.pk %}">{{ contact.company.name }}</a>
+    </p>
+  {% endif %}
+
+  <div class="section grid">
+    <div>
+      <h3>Kontaktinfos</h3>
+      <table>
+        <tbody>
+          <tr><th>E-Mail</th><td>
+            {% if contact.email %}
+              <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
+            {% else %}—{% endif %}
+          </td></tr>
+          <tr><th>Telefon</th><td>{{ contact.phone|default:"—" }}</td></tr>
+          <tr><th>Mobil</th><td>{{ contact.mobile|default:"—" }}</td></tr>
+          <tr><th>Notizen</th><td><pre style="white-space:pre-wrap;margin:0">{{ contact.notes|default:"—" }}</pre></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Aktionen</h3>
+      <p>
+        {% if contact.phone %}
+          <form method="post" action="{% url 'crm_core:call_number_via_sipgate' %}">
+            {% csrf_token %}
+            <input type="hidden" name="number" value="{{ contact.phone }}">
+            <button type="submit">📞 Anrufen (Festnetz)</button>
+          </form>
+        {% endif %}
+      </p>
+      <p>
+        {% if contact.mobile %}
+          <form method="post" action="{% url 'crm_core:call_number_via_sipgate' %}">
+            {% csrf_token %}
+            <input type="hidden" name="number" value="{{ contact.mobile }}">
+            <button type="submit">📞 Anrufen (Mobil)</button>
+          </form>
+        {% endif %}
+      </p>
+      <p>
+        <a class="button" href="{% url 'crm_core:contact_update' contact.pk %}">✏️ Bearbeiten</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Letzte Anrufe</h3>
+    {% if call_logs %}
+      <table>
+        <thead>
+          <tr>
+            <th>Datum/Zeit</th>
+            <th>Richtung</th>
+            <th>Rufnummer</th>
+            <th>Status</th>
+            <th>Quelle</th>
+            <th>Dauer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in call_logs %}
+            <tr>
+              <td>{{ l.started_at|date:"d.m.Y H:i" }}</td>
+              <td>{{ l.get_direction_display }}</td>
+              <td>{{ l.number }}</td>
+              <td>{{ l.get_status_display }}</td>
+              <td>{{ l.get_source_display }}</td>
+              <td>{% if l.duration_s %}{{ l.duration_s }}s{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Keine Anrufe vorhanden.</p>
+    {% endif %}
+  </div>
+
+</body>
+</html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Kontakt – {{ contact.first_name }} {{ contact.last_name }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px}
+    h1{margin:0 0 10px}
+    .muted{color:#666}
+    .section{margin:20px 0}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top}
+    th{background:#f5f5f5;text-align:left}
+    a.button, button{display:inline-block;padding:8px 12px;border:1px solid #ccc;border-radius:6px;background:#fafafa;text-decoration:none;color:#000}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width: 800px){ .grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+
+  {% if messages %}
+    <ul>
+      {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  <a href="{% url 'crm_core:contact_list' %}" class="button">← Zurück zur Kontaktliste</a>
+
+  <h1>{{ contact.first_name }} {{ contact.last_name }}</h1>
+  {% if contact.company %}
+    <p class="muted">Firma:
+      <a href="{% url 'crm_core:company_detail' contact.company.pk %}">{{ contact.company.name }}</a>
+    </p>
+  {% endif %}
+
+  <div class="section grid">
+    <div>
+      <h3>Kontaktinfos</h3>
+      <table>
+        <tbody>
+          <tr><th>E-Mail</th><td>
+            {% if contact.email %}
+              <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
+            {% else %}—{% endif %}
+          </td></tr>
+          <tr><th>Telefon</th><td>{{ contact.phone|default:"—" }}</td></tr>
+          <tr><th>Mobil</th><td>{{ contact.mobile|default:"—" }}</td></tr>
+          <tr><th>Notizen</th><td><pre style="white-space:pre-wrap;margin:0">{{ contact.notes|default:"—" }}</pre></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Aktionen</h3>
+      <p>
+        {% if contact.phone %}
+          <form method="post" action="{% url 'crm_core:call_number_via_sipgate' %}">
+            {% csrf_token %}
+            <input type="hidden" name="number" value="{{ contact.phone }}">
+            <button type="submit">📞 Anrufen (Festnetz)</button>
+          </form>
+        {% endif %}
+      </p>
+      <p>
+        {% if contact.mobile %}
+          <form method="post" action="{% url 'crm_core:call_number_via_sipgate' %}">
+            {% csrf_token %}
+            <input type="hidden" name="number" value="{{ contact.mobile }}">
+            <button type="submit">📞 Anrufen (Mobil)</button>
+          </form>
+        {% endif %}
+      </p>
+      <p>
+        <a class="button" href="{% url 'crm_core:contact_update' contact.pk %}">✏️ Bearbeiten</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Letzte Anrufe</h3>
+    {% if call_logs %}
+      <table>
+        <thead>
+          <tr>
+            <th>Datum/Zeit</th>
+            <th>Richtung</th>
+            <th>Rufnummer</th>
+            <th>Status</th>
+            <th>Quelle</th>
+            <th>Dauer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in call_logs %}
+            <tr>
+              <td>{{ l.started_at|date:"d.m.Y H:i" }}</td>
+              <td>{{ l.get_direction_display }}</td>
+              <td>{{ l.number }}</td>
+              <td>{{ l.get_status_display }}</td>
+              <td>{{ l.get_source_display }}</td>
+              <td>{% if l.duration_s %}{{ l.duration_s }}s{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Keine Anrufe vorhanden.</p>
+    {% endif %}
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,15 @@
+#!/bin/sed -f
+
+# Entferne doppelte Buttons „Als Ausgabe vormerken“ im oberen Bereich
+/^  <a class="btn btn-outline-success" href="\/crm\/expenses\/draft\/from-email.*Als Ausgabe vormerken<\/a>$/d
+/^  <a class="btn btn-outline-success" href="\/crm\/invoices\/draft\/from-email.*Als Ausgabe vormerken<\/a>$/d
+
+# Entferne Button "Excel-Import öffnen"
+s|^  <a class="btn btn-outline-primary" href="/crm/expenses/draft/from-email/.*Excel-Import öffnen</a>$||g
+
+# Entferne Anhangs-Buttons „Als Ausgabe vormerken“
+s|<a class="btn btn-sm btn-outline-success".*Als Ausgabe vormerken</a>||g
+
+# Füge neuen Button ein: OCR-Erkennung
+/<div class="actions" style=/a\
+  <a class="btn btn-outline-warning" href="/crm/expenses/ocr/from-email/?message_id={{ message.id }}">Rechnung per OCR erkennen</a>

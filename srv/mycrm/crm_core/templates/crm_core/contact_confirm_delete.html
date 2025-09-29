@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% load datetime_extras %}
+
+{% block content %}
+<h2>Kontakt löschen</h2>
+<p>Bist du sicher, dass du <strong>{{ contact.first_name }} {{ contact.last_name }}</strong> löschen möchtest?</p>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Ja, löschen</button>
+    <a href="{% url 'crm_core:contact_list' %}" class="btn btn-secondary">Abbrechen</a>
+</form>
+{% endblock %}

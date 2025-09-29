@@ -1,0 +1,39 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Anhänge – MyCRM{% endblock %}
+{% block content %}
+<h1>E-Mail-Anhänge</h1>
+<p class="muted">Nachricht: {{ message_id }}</p>
+
+{% if attachments %}
+<table>
+  <thead>
+    <tr><th>Name</th><th>Typ</th><th>Größe</th><th>Aktion</th></tr>
+  </thead>
+  <tbody>
+  {% for att in attachments %}
+  {# Direkt-Button pro Anhang #}
+  <p style="margin:6px 0">
+    <a class="btn btn-outline-primary"
+       href="/crm/expenses/draft/from-email/?mid={{ message_id }}&aid={{ att.id }}">Als Ausgabe vormerken</a>
+  </p>
+    <tr>
+      <td>{{ att.name }}</td>
+      <td>{{ att.contentType|default:"—" }}</td>
+      <td>{% if att.size %}{{ att.size }} Bytes{% else %}—{% endif %}</td>
+      <td style="white-space:nowrap">
+        <form method="post" action="{% url 'crm_core:email_attachment_save' message_id=message_id attachment_id=att.id %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="btn">💾 In Dateimanager</button>
+        </form>
+        {# Optional: Direktdownload, falls du die View nutzt #}
+        {# <a class="btn" href="{% url 'crm_core:email_attachment_download' message_id=message_id attachment_id=att.id %}">⬇️ Download</a> #}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>Keine Anhänge vorhanden.</p>
+{% endif %}
+{% endblock %}

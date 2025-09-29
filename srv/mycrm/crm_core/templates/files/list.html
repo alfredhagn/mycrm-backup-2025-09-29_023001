@@ -1,0 +1,75 @@
+{% extends "crm_core/base.html" %}
+{% block title %}Dateimanager{% endblock %}
+{% block content %}
+<h1 style="margin:10px 0 12px">📁 Dateimanager</h1>
+<p style="color:#64748b;margin:0 0 14px">
+  Wurzel: {{ root }} &nbsp;|&nbsp; Aktuell: /{{ rel }}
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0">
+  <a href="/crm/files/">
+    <button type="button" style="padding:6px 10px;border:1px solid #0ea5e9;color:#0ea5e9;background:white;border-radius:8px;cursor:pointer">Zur Wurzel</button>
+  </a>
+<a href="/crm/plan/today/">🗓️ Tagesplan</a>
+  {% if parent %}
+  <a href="/crm/files/?p={{ parent|urlencode }}">
+    <button type="button" style="padding:6px 10px;border:1px solid #0ea5e9;color:#0ea5e9;background:white;border-radius:8px;cursor:pointer">⬆️ nach oben</button>
+  </a>
+  {% endif %}
+
+  <form method="post" action="/crm/files/mkdir/" style="display:flex;gap:8px;margin-left:auto">
+    {% csrf_token %}
+    <input type="hidden" name="p" value="{{ rel }}">
+    <input type="text" name="name" required placeholder="Neuer Ordnername" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;min-width:220px">
+    <button type="submit" style="padding:6px 10px;border:1px solid #0ea5e9;color:#0ea5e9;background:white;border-radius:8px;cursor:pointer">Ordner anlegen</button>
+  </form>
+
+  <form method="post" action="/crm/files/upload/" enctype="multipart/form-data" style="display:flex;gap:8px">
+    {% csrf_token %}
+    <input type="hidden" name="p" value="{{ rel }}">
+    <input type="file" name="files" multiple style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px">
+    <button type="submit" style="padding:6px 10px;border:1px solid #0ea5e9;color:#0ea5e9;background:white;border-radius:8px;cursor:pointer">Hochladen</button>
+  </form>
+</div>
+
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f8fafc">
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Name</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Typ</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Größe</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Geändert</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Aktionen</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for f in files %}
+    <tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">
+        {% if f.is_dir %}
+          📁 <a class="link" href="/crm/files/?p={{ rel|urlencode }}/{{ f.name|urlencode }}">{{ f.name }}</a>
+        {% else %}
+          📄 <a class="link" href="{% url 'files_view' %}?p={{ rel|urlencode }}&name={{ f.name|urlencode }}" target="_blank" rel="noopener">{{ f.name }}</a>
+        {% endif %}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ f.type }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ f.size }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ f.modified }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">
+        {% if not f.is_dir %}
+          <a class="btn" href="{% url 'files_download' %}?p={{ rel|urlencode }}&name={{ f.name|urlencode }}" title="Herunterladen">⬇️ Download</a>
+          <a class="btn" href="{% url 'files_view' %}?p={{ rel|urlencode }}&name={{ f.name|urlencode }}" title="Ansehen" target="_blank" rel="noopener">👁️ Ansehen</a>
+        {% endif %}
+        <form method="post" action="/crm/files/delete/" onsubmit="return confirm('Wirklich löschen? ({{ f.is_dir|yesno:"Ordner,Datei" }})');" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="target" value="{{ rel }}/{{ f.name }}">
+          <button type="submit" title="Löschen" style="padding:4px 8px;border:1px solid #ef4444;color:#ef4444;background:white;border-radius:6px;cursor:pointer">🗑️</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" style="color:#94a3b8;padding:10px">Noch keine Dateien vorhanden.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

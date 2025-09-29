@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% load datetime_extras %}
+
+{% block content %}
+<h2>Kontakt bearbeiten / erstellen</h2>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-success">Speichern</button>
+    <a href="{% url 'crm_core:contact_list' %}" class="btn btn-secondary">Zurück</a>
+</form>
+{% endblock %}

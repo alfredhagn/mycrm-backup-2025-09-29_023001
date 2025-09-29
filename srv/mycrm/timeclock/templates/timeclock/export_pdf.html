@@ -1,0 +1,20 @@
+<!doctype html>
+<html><body>
+<h2>Detaillierter Zeiterfassungsnachweis</h2>
+<table border="1" cellspacing="0" cellpadding="4">
+  <tr>
+    <th>Datum</th><th>Start</th><th>Ende</th><th>Notiz</th>
+    <th>Remote</th><th>Dauer (h)</th>
+  </tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.date }}</td><td>{{ r.start }}</td><td>{{ r.end }}</td>
+    <td>{{ r.note }}</td><td>{{ r.remote }}</td><td>{{ r.duration }}</td>
+  </tr>
+  {% endfor %}
+  <tr>
+    <td>Gesamt</td><td></td><td></td><td></td><td></td>
+    <td>{{ total }}</td>
+  </tr>
+</table>
+</body></html>

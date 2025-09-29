@@ -1,0 +1,65 @@
+{% extends base_template|default:"crm_core/base.html" %}
+{% load static %}
+{% block title %}Entwurf bearbeiten{% endblock %}
+{% block content %}
+<h1 style="margin:10px 0 12px">✏️ Entwurf bearbeiten</h1>
+
+<form method="post" action="/crm/expenses/drafts/update/" style="display:grid;grid-template-columns:repeat(6,minmax(140px,1fr));gap:10px;align-items:end;padding:10px;border:1px solid #e5e7eb;border-radius:10px;margin:0 0 16px">
+{% if request.GET.debug == "1" %}
+<div style="grid-column:1/-1;border:1px dashed #94a3b8;padding:8px 10px;border-radius:8px">
+  <div style="font-weight:600;margin-bottom:6px">Erkannter Text (Debug)</div>
+  <pre style="white-space:pre-wrap;max-height:260px;overflow:auto">{{ parsed.raw_preview|default:"(leer)" }}</pre>
+</div>
+{% endif %}
+  {% csrf_token %}
+  <input type="hidden" name="id" value="{{ item.id }}">
+  <div><label>Betrag (Brutto)</label><input type="number" step="0.01" name="Brutto" value="{{ parsed.Brutto|default:"" }}" required style="width:100%">
+    <div><label>Netto</label>
+      <input type="number" step="0.01" name="Netto" value="{{ item.Netto|default:parsed.Netto|default:'' }}" style="width:100%">
+    </div></div>
+  <div><label>USt.-Satz</label>
+    <select name="USt_Satz" style="width:100%">
+      <option value="20" {% if item.USt_Satz == "20" %}selected{% endif %}>20%</option>
+      <option value="13" {% if item.USt_Satz == "13" %}selected{% endif %}>13%</option>
+      <option value="10" {% if item.USt_Satz == "10" %}selected{% endif %}>10%</option>
+      <option value=""  {% if not item.USt_Satz %}selected{% endif %}>—</option>
+    </select>
+  </div>
+  <div><label>Umsatzsteuer-Art</label>
+    <select name="Umsatzsteuer" style="width:100%">
+      <option value="" {% if not item.Umsatzsteuer %}selected{% endif %}>Normal</option>
+      <option {% if item.Umsatzsteuer == "Umsatzsteuerfrei" %}selected{% endif %}>Umsatzsteuerfrei</option>
+      <option {% if item.Umsatzsteuer == "Reverse Charge" %}selected{% endif %}>Reverse Charge</option>
+    </select>
+  </div>
+  <div><label>Kategorie</label>
+    <select name="Kategorie" style="width:100%">
+      {% for c in categories %}<option {% if c == item.Kategorie %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <div><label>Datum</label><input type="date" name="Datum" value="{{ item.Datum|default:parsed.Datum|default:today }}" required style="width:100%"></div>
+  <div><label>Zahlungsdatum</label><input type="date" 
+name="Zahlungsdatum" value="{{ item.Zahlungsdatum|default:parsed.Datum }}" style="width:100%"></div>
+
+  <div><label>Zahlung</label>
+    <select name="Zahlung" style="width:100%">
+      <option {% if item.Zahlung == "Konto" %}selected{% endif %}>Konto</option>
+      <option {% if item.Zahlung == "Kasse" %}selected{% endif %}>Kasse</option>
+    </select>
+  </div>
+  <div><label>Belegnummer</label><input type="text" name="Belegnummer" value="{{ item.Belegnummer }}" style="width:100%"></div>
+  <div><label>Unternehmen</label><input type="text" name="Unternehmen" value="{{ item.Unternehmen }}" style="width:100%"></div>
+  <div><label>Lieferant</label><input type="text" name="Lieferant" value="{{ item.Lieferant }}" style="width:100%"></div>
+  <div style="grid-column: span 3 / span 3"><label>Beschreibung</label><textarea name="Beschreibung" rows="3" style="width:100%">{{ item.Beschreibung }}</textarea></div>
+
+  <div style="grid-column: span 3 / span 3; text-align:right">
+    <a href="/crm/expenses/drafts/"><button type="button" style="padding:8px 12px;border:1px solid #64748b;color:#64748b;background:white;border-radius:8px;cursor:pointer;margin-top:6px">Abbrechen</button></a>
+    <button type="submit" style="padding:8px 12px;border:1px solid #10b981;color:#10b981;background:white;border-radius:8px;cursor:pointer;margin-top:6px">Speichern</button>
+  </div>
+</form>
+
+<div style="padding:10px;border:1px dashed #e5e7eb;border-radius:10px">
+  <div>Netto (auto): <strong>{{ item.Netto|floatformat:2 }}</strong></div>
+  <div>USt (auto): <strong>{{ item.USt|floatformat:2 }}</strong></div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=root
+# täglich um 02:30
+30 2 * * * root RCLONE_CONFIG=/etc/rclone-backup.conf /usr/local/sbin/backup_mycrm.sh >> /var/log/backup_mycrm.log 2>&1

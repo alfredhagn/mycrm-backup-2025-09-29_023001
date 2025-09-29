@@ -1,0 +1,34 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Neuen Termin erstellen{% endblock %}
+
+{% block content %}
+<h2>Neuen Termin erstellen</h2>
+
+<form method="post">
+  {% csrf_token %}
+
+  <div class="mb-3">
+    <label for="subject" class="form-label">Betreff</label>
+    <input type="text" class="form-control" id="subject" name="subject" value="{{ prefill.subject|default:'' }}">
+  </div>
+
+  <div class="mb-3">
+    <label for="start" class="form-label">Startzeit (z. B. 2025-08-19T14:00)</label>
+    <input type="text" class="form-control" id="start" name="start" value="{{ prefill.start|default:'' }}">
+  </div>
+
+  <div class="mb-3">
+    <label for="end" class="form-label">Endzeit (z. B. 2025-08-19T15:00)</label>
+    <input type="text" class="form-control" id="end" name="end" value="{{ prefill.end|default:'' }}">
+  </div>
+
+  <div class="mb-3">
+    <label for="body" class="form-label">Beschreibung</label>
+    <textarea class="form-control" id="body" name="body" rows="5">{{ prefill.body|default:'' }}</textarea>
+  </div>
+
+  <button type="submit" class="btn btn-success">Erstellen</button>
+  <a href="{% url 'crm_core:calendar_list' %}" class="btn btn-secondary">Abbrechen</a>
+</form>
+{% endblock %}

@@ -1,0 +1,96 @@
+# --- CALENDAR LIST HOTFIX: DE-Format + Zukunft-only + robust ---
+from django.views.decorators.http import require_GET
+from datetime import timedelta
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    # Token ermitteln
+    try:
+        token = _require_token(request)
+    except Exception as e:
+        messages.error(request, f"Auth-Fehler: {e}")
+        return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": 90})
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": 90})
+
+    # ahead absichern
+    try:
+        ahead = max(1, min(365, int(request.GET.get("ahead", "90"))))
+    except Exception:
+        ahead = 90
+
+    # Zeitfenster: ab gestern bis +ahead Tage
+    now_local = dj_tz.now()
+    start_iso = _ensure_aware(now_local - timedelta(days=1)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now_local + timedelta(days=ahead)).astimezone(dt_timezone.utc).isoformat()
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "200",
+    }
+
+    try:
+        r = _graph_get(token, "/me/calendarView", params=params)
+    except Exception as e:
+        messages.error(request, f"Kalender (Netzwerk): {e}")
+        return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": ahead})
+
+    if getattr(r, "status_code", 0) != 200:
+        messages.error(request, f"Kalender-Fehler (HTTP {getattr(r,'status_code','?')}).")
+        return render(request, "crm_core/calendar/list.html", {"events": [], "ahead": ahead})
+
+    try:
+        items = r.json().get("value", [])
+    except Exception:
+        items = []
+
+    # Parser & Formatierer
+    def _fmt(graph_dt):
+        try:
+            from dateutil import parser
+            dt = parser.isoparse((graph_dt or {}).get("dateTime") or "")
+            if dj_tz.is_naive(dt):
+                dt = dj_tz.make_aware(dt, dj_tz.utc)
+            return dt.astimezone(dj_tz.get_current_timezone()).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return (graph_dt or {}).get("dateTime", "")
+
+    # Nur Termine deren START >= gestern (lokal)
+    future = []
+    try:
+        from dateutil import parser
+        threshold = now_local - timedelta(days=1)
+        for ev in items:
+            try:
+                s = parser.isoparse((ev.get("start") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(s):
+                    s = dj_tz.make_aware(s, dj_tz.utc)
+                s = s.astimezone(dj_tz.get_current_timezone())
+                if s < threshold:
+                    continue
+            except Exception:
+                # wenn Start nicht parsebar -> trotzdem anzeigen
+                pass
+            # Strings setzen (kompatibel mit alten Templates)
+            s_str = _fmt(ev.get("start"))
+            e_str = _fmt(ev.get("end"))
+            ev["start_local"]  = s_str
+            ev["_start_local"] = s_str
+            ev["end_local"]    = e_str
+            ev["_end_local"]   = e_str
+            future.append(ev)
+    except Exception:
+        for ev in items:
+            s_str = _fmt(ev.get("start"))
+            e_str = _fmt(ev.get("end"))
+            ev["start_local"]  = s_str
+            ev["_start_local"] = s_str
+            ev["end_local"]    = e_str
+            ev["_end_local"]   = e_str
+            future.append(ev)
+
+    return render(request, "crm_core/calendar/list.html", {"events": future, "ahead": ahead})

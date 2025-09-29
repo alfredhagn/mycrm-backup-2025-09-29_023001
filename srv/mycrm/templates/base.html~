@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>MyCRM</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'crm_core:home' %}">MyCRM</a>
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:company_list' %}">Firmen</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:contact_list' %}">Kontakte</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:email_home' %}">E-Mail</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:calendar_create' %}">Kalender</a></li>
+            <li class="nav-item"><a class="nav-link" href="/accounts/logout/">Logout</a></li>
+            </ul>
+    </div>
+</nav>
+<div class="container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-info">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>

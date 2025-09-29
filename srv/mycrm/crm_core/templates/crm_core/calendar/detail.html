@@ -1,0 +1,26 @@
+{% extends 'crm_core/base.html' %}
+{% load datetime_extras %}
+{% block title %}Termin{% endblock %}
+{% block content %}
+<h2 class="mb-3">{{ subject|default:"(ohne Betreff)" }}</h2>
+
+<div class="mb-3 text-muted">
+  <div><strong>Start:</strong> {{ start }}</div>
+  <div><strong>Ende:</strong> {{ end }}</div>
+  {% if location %}<div><strong>Ort:</strong> {{ location }}</div>{% endif %}
+  {% if attendees %}<div><strong>Teilnehmer:</strong> {{ attendees }}</div>{% endif %}
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-primary" href="/crm/calendar/{{ id }}/update/">Bearbeiten</a>
+  <form method="post" action="/crm/calendar/{{ id }}/delete/" onsubmit="return confirm('Termin wirklich löschen?');">
+    {% csrf_token %}
+    <button class="btn btn-danger">Löschen</button>
+  </form>
+  <a class="btn btn-secondary" href="/crm/calendar/">Zurück</a>
+</div>
+
+<div class="card p-3">
+  {{ body|safe }}
+</div>
+{% endblock %}

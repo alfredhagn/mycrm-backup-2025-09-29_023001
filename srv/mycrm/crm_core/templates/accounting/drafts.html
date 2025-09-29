@@ -1,0 +1,95 @@
+{% extends base_template|default:"crm_core/base.html" %}
+{% load static %}
+{% block title %}Ausgaben-Entwürfe{% endblock %}
+{% block content %}
+<h1 style="margin:10px 0 12px">📑 Ausgaben – Entwürfe</h1>
+
+<form method="post" action="/crm/expenses/drafts/add/" style="display:grid;grid-template-columns:repeat(6,minmax(140px,1fr));gap:10px;align-items:end;padding:10px;border:1px solid #e5e7eb;border-radius:10px;margin:0 0 16px">
+  {% csrf_token %}
+  <div><label>Betrag (Brutto)</label><input type="number" step="0.01" name="Brutto" required style="width:100%"></div>
+  <div><label>USt.-Satz</label>
+    <select name="USt_Satz" style="width:100%">
+      <option value="20">20%</option>
+      <option value="13">13%</option>
+      <option value="10">10%</option>
+      <option value="">—</option>
+    </select>
+  </div>
+  <div><label>Umsatzsteuer-Art</label>
+    <select name="Umsatzsteuer" style="width:100%">
+      <option value="">Normal</option>
+      <option>Umsatzsteuerfrei</option>
+      <option>Reverse Charge</option>
+    </select>
+  </div>
+  <div><label>Kategorie</label>
+    <select name="Kategorie" required style="width:100%">
+      {% if categories %}{% for c in categories %}<option>{{ c }}</option>{% endfor %}{% else %}<option>Abschreibung</option><option>Abschreibung als Anlage (AfA)</option><option>Arbeitsmittel / Büro</option><option>Arbeitszimmer</option><option>Bewirtung</option><option>EDV-Aufwand</option><option>Fachliteratur</option><option>Fremdleistungen</option><option>Gehalt</option><option>Krankenkasse</option><option>GWG (geringw. Wirtschaftsgut)</option><option>KFZ-Aufwand</option><option>Porto</option><option>Privatentnahme</option><option>Rechtsberatung</option><option>Reisekosten</option><option>Sonstiges</option><option>Spenden</option><option>Spesen (Geldverkehr)</option><option>Steuerberatung</option><option>SVA</option><option>Taggelder</option><option>Telefon</option><option>Wareneinkauf</option><option>Werbungskosten</option><option>WKO-Gebühr</option>{% endif %}
+    </select>
+  </div>
+  <div><label>Datum</label><input type="date" name="Datum" value="{{ today }}" required style="width:100%"></div>
+  <div><label>Zahlung</label>
+    <select name="Zahlung" style="width:100%">
+      <option>Konto</option>
+      <option>Kasse</option>
+    </select>
+  </div>
+
+  <div><label>Belegnummer</label><input type="text" name="Belegnummer" style="width:100%"></div>
+  <div><label>Unternehmen</label><input type="text" name="Unternehmen" style="width:100%"></div>
+  <div><label>USt.-IdNr.</label><input type="text" name="USt_Id" style="width:100%"></div>
+  <div><label>Land</label><input type="text" name="Land" style="width:100%"></div>
+  <div style="grid-column: span 2 / span 2; text-align:right">
+    <button type="submit" style="padding:8px 12px;border:1px solid #0ea5e9;color:#0ea5e9;background:white;border-radius:8px;cursor:pointer;margin-top:6px">Vormerken</button>
+    <a href="/crm/expenses/drafts/export.xlsx"><button type="button" style="padding:8px 12px;border:1px solid #10b981;color:#10b981;background:white;border-radius:8px;cursor:pointer;margin-top:6px">Excel exportieren</button></a>
+  </div>
+</form>
+
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f8fafc">
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Belegnr.</th>
+      <th style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb">Brutto</th>
+      <th style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb">Netto</th>
+      <th style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb">USt.</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">USt-Art</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Kategorie</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Unternehmen</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Datum</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Zahlung</th>
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb">Aktionen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in items %}
+    <tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Belegnummer }}</td>
+      <td style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Brutto|floatformat:2 }}</td>
+      <td style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Netto|floatformat:2 }}</td>
+      <td style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.USt|floatformat:2 }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Umsatzsteuer|default:"Normal" }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Kategorie }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Unternehmen }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Datum }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">{{ r.Zahlung }}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">
+          <a href="/crm/expenses/drafts/edit/?id={{ r.id }}" title="Bearbeiten" style="padding:4px 8px;border:1px solid #3b82f6;color:#3b82f6;background:white;border-radius:6px;cursor:pointer;margin-right:6px;text-decoration:none">Bearbeiten</a>
+        <form method="post" action="/crm/expenses/drafts/delete/" onsubmit="return confirm('Entwurf löschen?')" style="display:inline">
+  <input type="hidden" name="idx" value="{{ r.id }}">
+          {% csrf_token %}
+          <input type="hidden" name="id" value="{{ r.id }}">
+          <button type="submit" title="Löschen" style="padding:4px 8px;border:1px solid #ef4444;color:#ef4444;background:white;border-radius:6px;cursor:pointer">🗑️</button>
+        
+  <input type="hidden" name="idx" value="{{ r.id }}">
+  <input type="hidden" name="id"  value="{{ r.id }}">
+</form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="10" style="padding:12px 10px;color:#64748b">Noch keine Entwürfe.<!-- OneDrive Link Icon -->
+        
+        </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

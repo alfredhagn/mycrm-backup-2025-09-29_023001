@@ -1,0 +1,68 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}E-Mail{% endblock %}
+{% block content %}
+<h2 class="mb-3">{{ message.subject|default:"(kein Betreff)" }}</h2>
+<div class="mb-3">
+</div>
+<div class="actions" style="margin:10px 0; display:flex; gap:8px; flex-wrap:wrap;">
+  <a class="btn btn-sm" href="{% url 'mail_to_task' message.id %}?subject={{ message.subject|urlencode }}">Als Aufgabe vormerken</a>
+  <a class="btn btn-outline-warning" href="/crm/expenses/ocr/from-email/?message_id={{ message.id }}">Rechnung per OCR erkennen</a>
+    {% if message.attachments %}
+    {% for a in message.attachments %}
+      <a class="btn btn-success" style="margin-left:8px"
+         href="/crm/inbox/attachment/save-invoice?message_id={{ message.id }}&attachment_id={{ a.id }}">Als Rechnung speichern</a>
+    {% endfor %}
+    {% endif %}
+  <a class="btn btn-outline-secondary" href="/crm/inbox/attachment/save-invoice?message_id={{ message.id }}">Als Rechnung speichern</a>
+  <a class="btn btn-outline-success" style="margin-left:8px" href="{% url 'attachment_save_invoice' %}?message_id={{ message.id }}">als Rechnung speichern</a>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <div><strong>Von:</strong> {{ message.from.emailAddress.address }}</div>
+    {% if contact_exists %}
+  <p>Kontakt: <a href="{% url 'crm_core:contact_detail' contact_exists.id %}">{{ contact_exists.name }}</a></p>
+{% else %}
+  <a href="{% url 'crm_core:email_contact_quickadd' message_id=message_id %}">Als Kontakt anlegen</a>
+{% endif %}
+
+    <div><strong>Empfangen:</strong> {{ message.receivedDateTime|iso_to_local:"d.m.Y H:i" }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="/crm/email/{{ message.id }}/reply/" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-primary">Antworten</button>
+    </form>
+    <form method="post" action="/crm/email/{{ message.id }}/reply-all/" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-secondary">Allen antworten</button>
+    </form>
+    <form method="post" action="/crm/email/{{ message.id }}/forward/" class="d-inline">
+      {% csrf_token %}
+      <input type="text" name="to" placeholder="Empfänger…" class="form-control form-control-sm d-inline-block" style="width: 220px;">
+      <button class="btn btn-outline-primary">Weiterleiten</button>
+       
+    </form>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <div style="white-space: pre-wrap;">{{ message.body.content|safe }}</div>
+</div>
+
+{% if attachments and attachments|length > 0 %}
+<div class="card p-3">
+  <h5>Anhänge</h5>
+  <ul class="mb-0">
+  {% for a in attachments %}
+    <li>
+      <a href="/crm/email/{{ message.id }}/attachments/{{ a.id }}/download/">{{ a.name|default:"Anhang" }}</a>
+        
+      ({{ a.size|default:0|filesizeformat }})
+    </li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

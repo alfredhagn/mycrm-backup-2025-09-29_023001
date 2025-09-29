@@ -1,0 +1,18 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}Kontakt löschen{% endblock %}
+{% block content %}
+<h1>Kontakt löschen</h1>
+<p>Möchtest du diesen Kontakt wirklich löschen?</p>
+
+<div class="card" style="margin-bottom:12px">
+  <p><strong>{{ contact.last_name }}{% if contact.last_name and contact.first_name %}, {% endif %}{{ contact.first_name }}</strong></p>
+  <p class="muted">{{ contact.email|default:"—" }}</p>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <button type="submit" class="btn">Ja, löschen</button>
+  <a class="btn" href="{% url 'crm_core:contact_detail' contact.pk %}">Abbrechen</a>
+</form>
+{% endblock %}

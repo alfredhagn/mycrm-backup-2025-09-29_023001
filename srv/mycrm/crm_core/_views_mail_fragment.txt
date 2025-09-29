@@ -1,0 +1,64 @@
+
+# --- REPLACE inbox_view and sent_view in crm_core/views.py with this block ---
+from django.views.decorators.http import require_GET
+
+@require_GET
+def inbox_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/inbox.html", {"messages_list": []})
+
+    query = request.GET.get("q", "").strip()
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    if query:
+        sanitized = query.replace("'", "")
+        params["$filter"] = f"contains(subject,'{sanitized}')"
+
+    r = _graph_get(token, "/me/mailFolders/Inbox/messages", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Mailbox-Fehler ({r.status_code}).")
+        return render(request, "crm_core/inbox.html", {"messages_list": []})
+
+    items = r.json().get("value", [])
+    for m in items:
+        m["_from"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["_received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["_received_local"] = m.get("receivedDateTime") or ""
+        m["_has_attachments"] = bool(m.get("hasAttachments"))
+
+    return render(request, "crm_core/inbox.html", {"messages_list": items, "query": query})
+
+@require_GET
+def sent_view(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/inbox.html", {"messages_list": []})
+
+    params = {
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": "50",
+    }
+    r = _graph_get(token, "/me/mailFolders/SentItems/messages", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Mailbox-Fehler ({r.status_code}).")
+        return render(request, "crm_core/inbox.html", {"messages_list": []})
+
+    items = r.json().get("value", [])
+    for m in items:
+        m["_from"] = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "")
+        try:
+            m["_received_local"] = _dt_to_str({"dateTime": m.get("receivedDateTime"), "timeZone": "UTC"})
+        except Exception:
+            m["_received_local"] = m.get("receivedDateTime") or ""
+        m["_has_attachments"] = bool(m.get("hasAttachments"))
+
+    return render(request, "crm_core/inbox.html", {"messages_list": items, "query": ""})

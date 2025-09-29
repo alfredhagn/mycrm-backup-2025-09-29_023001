@@ -1,0 +1,18 @@
+<h1>Telefonanruf starten</h1>
+
+{% if messages %}
+  <ul style="border:1px solid #ccc; padding:10px; list-style:none;">
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+  <label for="number">Telefonnummer:</label><br>
+  <input type="text" id="number" name="number" placeholder="+49..." required>
+  <button type="submit">📞 Anrufen</button>
+</form>
+
+<p><a href="{% url 'crm_core:fritzbox_call_list' %}">Zur Anrufliste</a></p>

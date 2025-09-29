@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+{% if messages %}
+  <ul style="border:1px solid #ccc; padding:10px;">
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+
+
+
+
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>MyCRM</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+
+<style id="tiles-css">
+/* Kompaktes, responsive Kachel-Grid */
+.grid-tiles{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:10px;
+  align-items:stretch;
+}
+.tile{
+  border:1px solid #ddd; border-radius:10px; padding:12px;
+  background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.tile h3{margin:.2rem 0 .4rem;font-size:1.05rem}
+.tile p{margin:0;font-size:.9rem;opacity:.85}
+.tile a{display:block;text-decoration:none;color:inherit}
+@media (min-height:900px){
+  .tile{padding:14px}
+}
+</style>
+
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'crm_core:home' %}">MyCRM</a>
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:company_list' %}">Firmen</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:contact_list' %}">Kontakte</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:email_home' %}">E-Mail</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'crm_core:calendar_create' %}">Kalender</a></li>
+            <li class="nav-item"><a class="nav-link" href="/accounts/logout/">Logout</a></li>
+            </ul>
+    </div>
+<a href="/crm/plan/today/" target="_blank" rel="noopener" style="margin-left:1rem">Teams-Links heute</a> <a href="{% url 'plan_today' %}">Teams-Links</a> 
+<a class="nav-tile" href="/crm/tiles/">Kachel-Übersicht</a>
+</nav>
+<div class="container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-info">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>

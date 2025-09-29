@@ -1,0 +1,38 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+
+{% block title %}Kalender - MyCRM{% endblock %}
+
+{% block content %}
+<h1>Kalender</h1>
+
+<a href="{% url 'crm_core:calendar_create' %}">➕ Neuer Termin</a>
+
+{% if events %}
+    <table border="1" cellspacing="0" cellpadding="6" width="100%">
+        <thead>
+            <tr>
+                <th>Betreff</th>
+                <th>Beginn</th>
+                <th>Ende</th>
+                <th>Ort</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ev in events %}
+            <tr>
+                <td>{{ ev.subject }}</td>
+                <td>{{ ev.start }}</td>
+                <td>{{ ev.end }}</td>
+                <td>{{ ev.location }}</td>
+                <td><a href="{% url 'crm_core:calendar_detail' ev.id %}">Anzeigen</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Keine Termine gefunden.</p>
+{% endif %}
+
+{% endblock %}

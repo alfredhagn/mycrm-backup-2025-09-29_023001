@@ -1,0 +1,35 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}E-Mail-Details{% endblock %}
+{% block content %}
+<h2>E-Mail-Details</h2>
+<p><strong>Betreff:</strong> {{ message.subject }}</p>
+<div class="actions" style="margin:10px 0; display:flex; gap:8px; flex-wrap:wrap;">
+  <a class="btn btn-sm" href="{% url 'mail_to_task' message.id %}?subject={{ message.subject|urlencode }}">Als Aufgabe vormerken</a>
+  <a class="btn btn-outline-success" href="/crm/invoices/draft/from-email/?mid={{ message.id }}&pick=1">Als Ausgabe vormerken</a>
+  <a class="btn btn-sm" href="/crm/expenses/draft/from-email/?message_id={{ message.id }}">Als Ausgabe vormerken</a>
+</div>
+<p><strong>Von:</strong>
+{% if message.from and message.from.emailAddress %}
+  {{ message.from.emailAddress.name }} &lt;{{ message.from.emailAddress.address }}&gt;
+{% else %}<span class="muted">unbekannt</span>{% endif %}
+</p>
+<p><strong>Gesendet am:</strong> {{ message.sentDateTime|date:"Y-m-d H:i" }}</p>
+
+<h3>Nachricht</h3>
+<div>
+  {% if message.body and message.body.content %}
+    {{ message.body.content|safe }}
+  {% else %}
+    <pre>{{ message.bodyPreview }}</pre>
+  {% endif %}
+</div>
+
+<h3>Anhänge</h3>
+{% include "email/attachments.html" %}
+
+<p style="margin-top:1rem;">
+  <a href="{% url 'crm_core:email_inbox' %}" class="btn btn-secondary">← Zurück zum Posteingang</a>
+  <a href="{% url 'crm_core:home' %}" class="btn btn-primary">Zurück zur Startseite</a>
+</p>
+{% endblock %}

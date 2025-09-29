@@ -1,0 +1,55 @@
+{% load static %}
+{% if messages %}
+  <ul class="messages">
+    {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+  </ul>
+{% endif %}
+
+<h1>Projekte verwalten</h1>
+
+<form method="post" action="{% url 'timeclock:project_new' %}" style="margin:1em 0;">
+  {% csrf_token %}
+  <input type="text" name="name" placeholder="Neues Projekt..." required>
+  <button type="submit">+ Anlegen</button>
+</form>
+
+<table border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Aktiv</th>
+      <th>Einträge</th>
+      <th>Aktionen</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in projects %}
+    <tr>
+      <td>
+        <form method="post" action="{% url 'timeclock:project_rename' p.id %}">
+          {% csrf_token %}
+          <input type="text" name="name" value="{{ p.name }}" required>
+          <button type="submit">Umbenennen</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="{% url 'timeclock:project_toggle' p.id %}">
+          {% csrf_token %}
+          <button type="submit">{% if p.is_active %}Deaktivieren{% else %}Aktivieren{% endif %}</button>
+        </form>
+      </td>
+      <td style="text-align:right">{{ p.entry_count }}</td>
+      <td>
+        <form method="post" action="{% url 'timeclock:project_delete' p.id %}" onsubmit="return confirm('Wirklich löschen?');">
+          {% csrf_token %}
+          <button type="submit" {% if p.entry_count|default:0 > 0 %}disabled title="Hat Einträge"{% endif %}>Löschen</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4">Keine Projekte angelegt.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p style="margin-top:1em;"><a href="{% url 'timeclock:dashboard' %}">← Zurück zur Zeiterfassung</a></p>

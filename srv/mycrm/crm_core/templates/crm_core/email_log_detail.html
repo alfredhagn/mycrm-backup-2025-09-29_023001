@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% load datetime_extras %}
+
+{% block content %}
+<h2>E-Mail-Details</h2>
+<p><strong>Betreff:</strong> {{ email.subject }}</p>
+<p><strong>Nachricht:</strong></p>
+<pre>{{ email.message }}</pre>
+<p><strong>Status:</strong> {{ email.status }}</p>
+<p><strong>Gesendet am:</strong> {{ email.sent_at }}</p>
+<a href="{% url 'crm_core:email_log_list' %}" class="btn btn-secondary">Zurück</a>
+{% endblock %}

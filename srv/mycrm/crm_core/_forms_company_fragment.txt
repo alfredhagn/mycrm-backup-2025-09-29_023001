@@ -1,0 +1,9 @@
+
+# --- FRAGMENT: use in crm_core/forms.py ---
+from django import forms
+from .models import Company
+
+class CompanyForm(forms.ModelForm):
+    class Meta:
+        model  = Company
+        fields = ["name","email","phone","website","street","postal_code","city","country","notes"]

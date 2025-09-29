@@ -1,0 +1,7 @@
+<h1>Firma löschen</h1>
+<p>Möchten Sie „{{ company.name }}“ wirklich löschen?</p>
+<form method="post">
+  {% csrf_token %}
+  <button type="submit">✅ Löschen</button>
+  <a href="{% url 'crm_core:company_list' %}">❌ Abbrechen</a>
+</form>

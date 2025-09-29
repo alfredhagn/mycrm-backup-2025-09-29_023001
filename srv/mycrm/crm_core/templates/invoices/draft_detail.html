@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Rechnung vormerken</h1>
+<div class="grid-tiles">
+  <div class="tile" style="grid-column: span 2;">
+    <h3>Erkannte Daten</h3>
+    <form method="post" action="{% url 'inv_draft_save' %}">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ d.pk }}">
+      <div><label>Rechnungsteller</label><br><input name="issuer" value="{{ d.issuer|default:'' }}" style="width:320px"></div>
+      <div><label>Rechnungs-Nr.</label><br><input name="invoice_number" value="{{ d.invoice_number|default:'' }}" style="width:200px"></div>
+      <div><label>Datum</label><br><input name="invoice_date" value="{{ d.invoice_date|date:'Y-m-d' }}" placeholder="YYYY-MM-DD" style="width:140px"></div>
+      <div><label>Währung</label><br><input name="currency" value="{{ d.currency|default:'EUR' }}" style="width:90px"></div>
+      <hr>
+      <div><label>Netto</label><br><input name="net_amount" value="{{ d.net_amount }}" style="width:120px"></div>
+      <div><label>MwSt-Satz (%)</label><br><input name="vat_rate" value="{{ d.vat_rate }}" style="width:120px"></div>
+      <div><label>MwSt-Betrag</label><br><input name="vat_amount" value="{{ d.vat_amount }}" style="width:120px"></div>
+      <div><label>Brutto</label><br><input name="gross_amount" value="{{ d.gross_amount }}" style="width:120px"></div>
+      <div style="margin-top:10px">
+        <button class="btn">Vormerken</button>
+        <a class="btn" href="{{ d.pdf.url }}" target="_blank" rel="noopener">PDF öffnen</a>
+      </div>
+    <label>Kategorie
+  {% if categories %}
+    <select name="Kategorie" style="width:100%">
+      {% for c in categories %}
+        <option value="{{ c.id }}"
+          {% if item.Kategorie_id|default:'' == c.id or item.Kategorie|default:'' == c.name %}selected{% endif %}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+  {% elif expense_categories %}
+    <select name="Kategorie" style="width:100%">
+      {% for c in expense_categories %}
+        <option value="{{ c.id }}"
+          {% if item.Kategorie_id|default:'' == c.id or item.Kategorie|default:'' == c.name %}selected{% endif %}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+  {% else %}
+    <input type="text" name="Kategorie" value="{{ item.Kategorie|default:parsed.Kategorie|default:'' }}" style="width:100%">
+  {% endif %}
+</label>
+</form>
+  </div>
+  <div class="tile">
+    <h3>Quelle</h3>
+    <p>Message ID: {{ d.source_message_id }}</p>
+    <p>Attachment ID: {{ d.source_attachment_id }}</p>
+    <p>SHA256: {{ d.attachment_sha256|slice:":16" }}…</p>
+    <p>Status: {{ d.status }}</p>
+  </div>
+</div>
+{% endblock %}

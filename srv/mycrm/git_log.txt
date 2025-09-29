@@ -1,0 +1,2 @@
+58eedf5 Snapshot: VOIP & Sipgate click-to-call working
+13b4820 UI Mailbox, Calendar upcoming-first, TR-064, Sipgate click-to-call

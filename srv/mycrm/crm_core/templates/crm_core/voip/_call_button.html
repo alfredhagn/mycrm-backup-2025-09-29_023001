@@ -1,0 +1,8 @@
+{% if number %}
+<form method="post" action="{% url 'crm_core:call_number_via_sipgate' %}" style="display:inline;">
+  {% csrf_token %}
+  <input type="hidden" name="number" value="{{ number }}">
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit" class="btn btn-sm btn-success">Anrufen (Sipgate)</button>
+</form>
+{% endif %}

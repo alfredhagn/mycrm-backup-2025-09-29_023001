@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-3" style="max-width: 900px;">
+  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'crm_core:email_inbox' %}">« Zurück zur Inbox</a>
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title" style="margin-bottom:.25rem;">{{ subject }}</h5>
+      <div class="text-muted" style="font-size:.9rem;">
+        Von: {{ from_name }} &lt;{{ from_email }}&gt; · {{ when }}
+        {% if weblink %}
+          · <a href="{{ weblink }}" target="_blank" rel="noopener">in Outlook öffnen</a>
+        {% endif %}
+      </div>
+      <hr/>
+      <div>
+        {{ html|safe }}
+      </div>
+      {% if has_attachments %}
+        <hr/>
+        <div class="text-muted">Anhänge vorhanden (Download folgt in späterem Schritt).</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

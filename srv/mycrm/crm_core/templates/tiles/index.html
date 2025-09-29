@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Kachel-Übersicht</h1>
+<section class="grid-tiles">
+  {% for t in tiles %}
+    <div class="tile">
+      {% if t.href %}
+        <a href="{% url t.href %}">
+          <h3>{{ t.title }}</h3>
+          <p>{{ t.desc }}</p>
+        </a>
+      {% else %}
+        <a href="{{ t.href_abs }}">
+          <h3>{{ t.title }}</h3>
+          <p>{{ t.desc }}</p>
+        </a>
+      {% endif %}
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

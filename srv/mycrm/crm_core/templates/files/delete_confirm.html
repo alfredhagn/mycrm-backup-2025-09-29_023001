@@ -1,0 +1,10 @@
+<h1>Datei löschen</h1>
+
+<p>Sind Sie sicher, dass Sie diese Datei löschen möchten?</p>
+<p><strong>{{ filename }}</strong></p>
+
+<form method="post">
+  {% csrf_token %}
+  <button type="submit">✅ Löschen</button>
+  <a href="{% url 'crm_core:files_list' %}">❌ Abbrechen</a>
+</form>

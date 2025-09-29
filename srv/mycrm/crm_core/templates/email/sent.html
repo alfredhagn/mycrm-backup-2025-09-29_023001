@@ -1,0 +1,35 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}E-Mail – Posteingang{% endblock %}
+{% block content %}
+<h1>E-Mail – Gesendete Mails</h1>
+{% if emails %}
+  <table border="1" cellspacing="0" cellpadding="6" width="100%">
+    <thead>
+      <tr>
+        <th>Betreff</th>
+        <th>Von</th>
+        <th>Empfangen</th>
+        <th>📎</th>
+      <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in emails %}
+      <tr>
+        <td><a href="{% url 'crm_core:email_detail' i.id %}">{{ i.subject|default:"(kein Betreff)" }}</a></td>
+        <td>
+          {% if i.from and i.from.emailAddress %}
+            {{ i.from.emailAddress.name }} &lt;{{ i.from.emailAddress.address }}&gt;
+          {% else %}<span class="muted">unbekannt</span>{% endif %}
+        </td>
+        <td>{{ i.receivedDateTime|iso_to_local:"d.m.Y H:i" }}</td>
+        <td>{% if i.hasAttachments %}📎{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="muted">Keine E-Mails gefunden.</p>
+{% endif %}
+{% endblock %}

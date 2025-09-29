@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Zeiterfassung – Export</h2>
+<form method="get" action="">
+  <label>Von: <input type="date" name="from"></label>
+  <label>Bis: <input type="date" name="to"></label><br><br>
+  <button formaction="csv/">CSV exportieren</button>
+  <button formaction="xlsx/">XLSX exportieren</button>
+  <button formaction="pdf/">PDF exportieren</button>
+</form>
+{% endblock %}

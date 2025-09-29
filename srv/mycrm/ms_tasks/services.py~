@@ -1,0 +1,17 @@
+# /srv/mycrm/ms_tasks/services.py
+from .ms_graph_client import MSGraphClient
+
+def get_task_lists(user_id):
+    client = MSGraphClient()
+    resp = client.get(f"/users/{user_id}/todo/lists")
+    return resp.get("value", [])
+
+def get_tasks_from_list(user_id, list_id):
+    client = MSGraphClient()
+    resp = client.get(f"/users/{user_id}/todo/lists/{list_id}/tasks")
+    return resp.get("value", [])
+
+def update_task_status(user_id, list_id, task_id, is_completed):
+    client = MSGraphClient()
+    data = {"status": "completed" if is_completed else "notStarted"}
+    return client.patch(f"/users/{user_id}/todo/lists/{list_id}/tasks/{task_id}", data)

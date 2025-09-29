@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8">
+<h1>Ausgaben – Entwürfe</h1>
+<p><a href="/admin/crm_core/expensedraft/add/">➕ Neuer Entwurf (Admin)</a></p>
+<table border="1" cellpadding="6" cellspacing="0" width="100%">
+  <tr>
+    <th>ID</th><th>Datum</th><th>Betrag</th><th>Lieferant</th><th>Kategorie</th><th>Beschreibung</th><th>Erstellt</th>
+  </tr>
+  {% for e in items %}
+    <tr>
+      <td>{{ e.id }}</td>
+      <td>{{ e.date }}</td>
+      <td style="text-align:right;">{% if e.amount %}{{ e.amount }} €{% else %}—{% endif %}</td>
+      <td>{{ e.supplier }}</td>
+      <td>{{ e.category }}</td>
+      <td>{{ e.description|truncatechars:120 }}</td>
+      <td>{{ e.created_at }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7">Keine Entwürfe vorhanden.</td></tr>
+  {% endfor %}
+</table>

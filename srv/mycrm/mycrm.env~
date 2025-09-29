@@ -1,0 +1,41 @@
+# Sipgate Click-to-Call
+SIPGATE_TOKEN_ID=token-0XGPZZ
+SIPGATE_TOKEN=8cd2113b-86c6-43c2-a6ba-e0e98fd4dd9c
+SIPGATE_DEVICE_ID=e0
+SIPGATE_CALLER=+498414544240
+SIPGATE_API_BASE=https://api.sipgate.com
+
+# Nummern-Normalisierung
+DEFAULT_COUNTRY_CODE=DE
+
+
+DJANGO_ALLOWED_HOSTS=mycrm.interimhagn.de,ispconfig.ahagn.de,45.141.37.144,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://mycrm.interimhagn.de,https://ispconfig.ahagn.de,https://45.141.37.144
+
+FRITZBOX_HOST=192.168.110.147
+FRITZBOX_USERNAME=alfred
+FRITZBOX_PASSWORD=Ddcm967/
+FRITZBOX_SCHEME=https
+FRITZBOX_VERIFY_TLS=false
+
+
+
+
+
+
+DJANGO_DEBUG=False
+
+
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_HSTS_PRELOAD=True
+
+# Neuer, langer SECRET_KEY (s.u. Generator verwenden)
+DJANGO_SECRET_KEY='2gr6rfl%_^5fe64&2ahl2qcxbzhjgbf!2d&!38dhp7%+f!4x)s'
+
+
+
+FRITZBOX_BASE_URL=https://192.168.110.147

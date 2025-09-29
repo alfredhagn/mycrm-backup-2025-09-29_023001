@@ -1,0 +1,26 @@
+{% extends "crm_core/base.html" %}
+{% load datetime_extras %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>{{ title }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="name">Projektname:</label>
+      <input type="text" name="name" class="form-control" required value="{{ project.name|default:'' }}">
+    </div>
+    {% if project %}
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="is_active" {% if project.is_active %}checked{% endif %}>
+        Aktiv
+      </label>
+    </div>
+    {% endif %}
+    <button type="submit" class="btn btn-primary">💾 Speichern</button>
+    <a href="{% url 'timeclock:project_list' %}" class="btn btn-secondary">Zurück</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+
+# --- REPLACE calendar_list in crm_core/views.py with this block ---
+from datetime import timedelta
+from django.views.decorators.http import require_GET
+from datetime import timezone as dt_timezone
+
+@require_GET
+def calendar_list(request):
+    token = _require_token(request)
+    if not token:
+        messages.error(request, "Nicht bei Microsoft angemeldet.")
+        return render(request, "crm_core/calendar/list.html", {"events": []})
+
+    # Fenster: 7 Tage zurück bis +90 Tage nach vorne
+    now = dj_tz.now()
+    start_iso = _ensure_aware(now - timedelta(days=7)).astimezone(dt_timezone.utc).isoformat()
+    end_iso   = _ensure_aware(now + timedelta(days=90)).astimezone(dt_timezone.utc).isoformat()
+
+    params = {
+        "startDateTime": start_iso,
+        "endDateTime": end_iso,
+        "$select": "id,subject,start,end,location,attendees",
+        "$orderby": "start/dateTime ASC",
+        "$top": "100",
+    }
+    r = _graph_get(token, "/me/calendarView", params=params)
+    if r.status_code != 200:
+        messages.error(request, f"Kalender-Fehler ({r.status_code}).")
+        return render(request, "crm_core/calendar/list.html", {"events": []})
+
+    items = r.json().get("value", [])
+
+    # Nur laufende/kommende anzeigen
+    upcoming = []
+    try:
+        from dateutil import parser
+        now_dt = dj_tz.now()
+        for ev in items:
+            try:
+                end_dt = parser.isoparse((ev.get("end") or {}).get("dateTime") or "")
+                if dj_tz.is_naive(end_dt):
+                    end_dt = dj_tz.make_aware(end_dt, dj_tz.utc)
+                if end_dt >= now_dt:
+                    upcoming.append(ev)
+            except Exception:
+                upcoming.append(ev)
+    except Exception:
+        upcoming = items
+
+    # Lokale Strings
+    for ev in upcoming:
+        try:
+            ev["_start_local"] = _dt_to_str(ev.get("start") or {})
+            ev["_end_local"] = _dt_to_str(ev.get("end") or {})
+        except Exception:
+            pass
+
+    return render(request, "crm_core/calendar/list.html", {"events": upcoming})
